@@ -1,0 +1,5 @@
+2025-02-19 14:46:55,098 - INFO - Starting data processing
+2025-02-19 14:46:55,339 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 14:46:55,340 - INFO - Limited influencers data to 10 users
+2025-02-19 14:51:54,654 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 14:52:03,238 - INFO - Finished processing. Final DataFrame shape: (5384, 19)

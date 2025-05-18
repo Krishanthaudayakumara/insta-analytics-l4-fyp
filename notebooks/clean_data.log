@@ -1,0 +1,16 @@
+2025-02-19 15:33:42,424 - INFO - Starting data cleaning and deduplication
+2025-02-19 15:33:50,295 - INFO - Loaded data: 264011 rows
+2025-02-19 15:33:50,575 - INFO - Removed duplicate rows. Remaining rows: 261923
+2025-02-19 15:33:50,605 - INFO - Removed 'Username' column
+2025-02-19 15:33:59,857 - INFO - Saved cleaned data to /home/krishantha/Github/fyp-l4/data/processed_data/cleaned_merged_user_post_data.csv
+2025-02-19 15:47:25,040 - INFO - Starting data cleaning and deduplication
+2025-02-19 15:47:34,595 - INFO - Loaded data: 264011 rows
+2025-02-19 15:47:34,630 - INFO - Removed rows with 0 comments_count. Remaining rows: 261454
+2025-02-19 15:47:34,727 - INFO - Removed rows with empty caption or hashtags. Remaining rows: 253351
+2025-02-19 15:48:15,249 - INFO - Starting data cleaning and deduplication
+2025-02-19 15:48:24,783 - INFO - Loaded data: 264011 rows
+2025-02-19 15:48:24,816 - INFO - Removed rows with 0 comments_count. Remaining rows: 261454
+2025-02-19 15:48:24,910 - INFO - Removed rows with empty caption or hashtags. Remaining rows: 253351
+2025-02-19 15:48:30,845 - INFO - Removed duplicate rows. Remaining rows: 251289
+2025-02-19 15:48:30,886 - INFO - Removed 'Username' column
+2025-02-19 15:48:43,691 - INFO - Saved cleaned data to /home/krishantha/Github/fyp-l4/data/processed_data/cleaned_merged_user_post_data.csv

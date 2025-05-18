@@ -1,0 +1,33 @@
+2025-02-19 14:28:20,095 - INFO - Starting data processing
+2025-02-19 14:28:20,283 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 14:28:20,283 - INFO - Limited influencers data to 10 users
+2025-02-19 14:28:20,378 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 14:30:39,369 - INFO - Starting data processing
+2025-02-19 14:30:39,520 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 14:30:39,520 - INFO - Limited influencers data to 10 users
+2025-02-19 14:30:39,573 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 14:30:41,115 - INFO - Finished processing. Final DataFrame shape: (5384, 19)
+2025-02-19 14:37:09,207 - INFO - Starting data processing
+2025-02-19 14:37:09,370 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 14:37:09,370 - INFO - Limited influencers data to 10 users
+2025-02-19 14:37:09,415 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 14:37:10,990 - INFO - Finished processing. Final DataFrame shape: (5384, 19)
+2025-02-19 14:37:39,852 - INFO - Starting data processing
+2025-02-19 14:37:40,004 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 14:37:40,005 - INFO - Limited influencers data to 10 users
+2025-02-19 14:37:40,047 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 14:37:41,724 - INFO - Finished processing. Final DataFrame shape: (5384, 19)
+2025-02-19 14:42:52,744 - INFO - Starting data processing
+2025-02-19 14:42:52,904 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 14:42:52,904 - INFO - Limited influencers data to 10 users
+2025-02-19 14:42:52,949 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 14:42:54,492 - INFO - Finished processing. Final DataFrame shape: (5384, 19)
+2025-02-19 15:00:00,422 - INFO - Starting data processing
+2025-02-19 15:00:00,612 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-02-19 15:00:00,612 - INFO - Limited influencers data to 10 users
+2025-02-19 15:00:00,659 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 15:00:00,664 - WARNING - Mismatched usernames: {'mammaguru', 'bruninho1', 'fashionablehostess', 'geekfacts'}
+2025-02-19 15:00:02,507 - INFO - Finished processing. Final DataFrame shape: (5384, 19)
+2025-02-19 15:01:48,523 - INFO - Starting data processing
+2025-02-19 15:01:48,578 - INFO - Extracted data from 100 posts from 10 users
+2025-02-19 15:01:50,548 - INFO - Finished processing. Final DataFrame shape: (5384, 14)
