@@ -31,8 +31,11 @@ def merge_with_influencers(posts_csv_path, influencers_csv_path, output_csv_path
 
     # --- Merge ---
     try:
-
         merged_df = pd.merge(posts_df, influencers_df, left_on='username', right_on='Username', how='left')
+        # Feature engineering: follower-adjusted engagement
+        if '#Followers' in merged_df.columns:
+            merged_df['follower_adjusted_likes'] = merged_df['likes'] / (merged_df['#Followers'] + 1)
+            merged_df['follower_adjusted_comments'] = merged_df['comments_count'] / (merged_df['#Followers'] + 1)
         logging.info(f"Merged data successfully. Merged DataFrame shape: {merged_df.shape}")
 
 

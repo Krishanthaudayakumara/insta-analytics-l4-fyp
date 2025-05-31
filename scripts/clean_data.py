@@ -49,6 +49,11 @@ def clean_and_deduplicate(input_csv, output_csv):
         df.drop(columns=['Username'], inplace=True)
         logging.info("Removed 'Username' column")
 
+    # --- Feature engineering: engagement rate ---
+    if 'likes' in df.columns and '#Followers' in df.columns:
+        df['engagement_rate'] = (df['likes'] + df['comments_count']) / (df['#Followers'] + 1)
+        logging.info("Added engagement_rate feature.")
+
     # --- Save Cleaned Data ---
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
     df.to_csv(output_csv, index=False, encoding='utf-8')

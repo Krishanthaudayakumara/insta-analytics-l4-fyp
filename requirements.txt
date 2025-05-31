@@ -4,3 +4,4 @@ seaborn
 nltk
 textblob
 scikit-learn
+streamlit
