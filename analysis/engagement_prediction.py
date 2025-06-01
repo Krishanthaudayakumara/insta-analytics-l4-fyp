@@ -7,6 +7,25 @@ import numpy as np
 import pandas as pd
 import joblib
 
+class PostRecommendationModel:
+    def __init__(self, model, feature_cols):
+        self.model = model
+        self.feature_cols = feature_cols
+    def recommend(self, features, user_df=None):
+        import numpy as np
+        import pandas as pd
+        X_input = np.array([[features.get(f, 0) for f in self.feature_cols]])
+        pred_engagement = self.model.predict(X_input)[0]
+        rec = {
+            'caption_sentiment': features.get('caption_sentiment', 'positive'),
+            'caption_length': features.get('caption_length', 15),
+            'category': user_df['category'].iloc[0] if user_df is not None and 'category' in user_df else 'N/A',
+            'hashtags': user_df['hashtags'].iloc[0].split(',') if user_df is not None and 'hashtags' in user_df and not pd.isna(user_df['hashtags'].iloc[0]) else [],
+            'theme': user_df['theme'].iloc[0] if user_df is not None and 'theme' in user_df else 'N/A',
+            'expected_engagement_rate': round(pred_engagement, 3)
+        }
+        return rec
+
 def run(df):
     df = df.fillna(0)
     # --- Feature Engineering: Use all relevant features ---
@@ -109,6 +128,44 @@ def train_and_save_like_comment_models(df):
         joblib.dump(model_ridge_comments, 'outputs/model_ridge_comments.joblib')
         joblib.dump(model_rf_comments, 'outputs/model_random_forest_comments.joblib')
         joblib.dump(X_cols_comments, 'outputs/model_features_comments.joblib')
+    return True
+
+def train_and_save_post_recommendation_model(df):
+    """
+    Train and save a personalized post recommendation model for suggesting optimal next post attributes.
+    Saves model to outputs/model_post_recommendation.joblib and features to outputs/model_post_recommendation_features.joblib.
+    """
+    import numpy as np
+    import joblib
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.model_selection import train_test_split
+    # Define features and targets for recommendation
+    feature_cols = [
+        'caption_length', 'num_hashtags', 'engagement_rate',
+        'caption_sentiment', 'caption_sentiment_vader',
+        'hour_of_day', 'day_of_week', 'user_cluster_k', 'user_cluster_agglom',
+        '#Followers', '#Followees', '#Posts',
+        # Add more if available
+    ]
+    # Only keep features present in df
+    feature_cols = [col for col in feature_cols if col in df.columns]
+    # Target: engagement_rate (or likes/comments if preferred)
+    target_col = 'engagement_rate' if 'engagement_rate' in df.columns else (
+        'likes' if 'likes' in df.columns else 'comments_count'
+    )
+    if not feature_cols or target_col not in df.columns:
+        raise ValueError("Required features or target not found in data for post recommendation model.")
+    X = df[feature_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+    y = df[target_col].apply(pd.to_numeric, errors='coerce').fillna(0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    # Save model and features
+    joblib.dump(model, 'outputs/model_post_recommendation.joblib')
+    joblib.dump(feature_cols, 'outputs/model_post_recommendation_features.joblib')
+    # Save wrapped model for UI
+    wrapped_model = PostRecommendationModel(model, feature_cols)
+    joblib.dump(wrapped_model, 'outputs/model_post_recommendation.joblib')
     return True
 
 # Add CLI entry point

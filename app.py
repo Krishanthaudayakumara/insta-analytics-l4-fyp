@@ -259,12 +259,167 @@ if (
 else:
     st.info("Trained like/comment models or features not found. Please run the training pipeline for both targets.")
 
-# Add a button to train like/comment models as a pipeline
-st.subheader("Train Like/Comment ML Models Pipeline")
-if st.button("Train Like/Comment Models (Pipeline)"):
-    with st.spinner("Training like/comment ML models..."):
-        from analysis.engagement_prediction import train_and_save_like_comment_models
-        train_and_save_like_comment_models(df)
-    st.success("Like/comment models trained and saved! You can now use the prediction UI below.")
+# --- Sidebar Model Training Buttons ---
+st.sidebar.subheader("Model Training & Pipelines")
+if 'df' in locals() or 'df' in globals():
+    if st.sidebar.button("Train Like/Comment Models (Pipeline)"):
+        with st.spinner("Training like/comment ML models..."):
+            from analysis.engagement_prediction import train_and_save_like_comment_models
+            train_and_save_like_comment_models(df)
+        st.success("Like/comment models trained and saved! You can now use the prediction UI below.")
+    if st.sidebar.button("Train Personalized Post Recommendation Model"):
+        with st.spinner("Training personalized post recommendation model..."):
+            from analysis.engagement_prediction import train_and_save_post_recommendation_model
+            train_and_save_post_recommendation_model(df)
+        st.success("Personalized post recommendation model trained and saved!")
+else:
+    st.sidebar.info("Please load data before training models.")
+
+# --- Advanced Personalized Post Recommendations ---
+st.subheader("Advanced Personalized Post Recommendations")
+user_col = 'username' if 'username' in df.columns else 'user'
+if user_col not in df.columns:
+    st.info("No user column found in data.")
+else:
+    # Filter out invalid usernames (True, False, 1, 0, empty, numeric, floats, whitespace)
+    import re
+    def is_valid_username(u):
+        if not isinstance(u, str):
+            return False
+        u_strip = u.strip()
+        if u_strip.lower() in ('true', 'false', 'username', '', 'none'):
+            return False
+        if u_strip.isnumeric():
+            return False
+        # Exclude floats
+        try:
+            float(u_strip)
+            return False
+        except ValueError:
+            pass
+        # Exclude if only whitespace
+        if not u_strip:
+            return False
+        # Exclude if looks like a sentence or is too long
+        if len(u_strip) > 30:
+            return False
+        # Exclude if contains spaces and is not a typical username
+        if ' ' in u_strip and not re.match(r'^[a-zA-Z0-9_.-]+$', u_strip.replace(' ', '')):
+            return False
+        return True
+    required_cols = ['caption_length', 'num_hashtags', 'engagement_rate']
+    user_list = []
+    debug_info = []
+    for u in df[user_col].unique().tolist():
+        valid_flag = is_valid_username(u)
+        debug_info.append((u, valid_flag))
+        if valid_flag and u not in user_list:
+            user_list.append(u)
+    if not user_list:
+        st.warning("No users with valid data found in the dataset.")
+        st.write("#### Debug: Sample of usernames and filtering status")
+        st.write(pd.DataFrame(debug_info, columns=["username", "is_valid_username"]).head(30))
+        st.stop()
+    selected_user = st.selectbox("Select a user for advanced personalized recommendations:", user_list)
+    if selected_user:
+        user_df = df[df[user_col] == selected_user]
+        if user_df.empty:
+            st.warning(f"No data found for user '{selected_user}'. Please select another user.")
+            st.stop()
+        # 1. Show user profile summary
+        st.markdown(f"**Profile for {selected_user}:**")
+        st.write({
+            "Followers": int(user_df['#Followers'].iloc[0]) if '#Followers' in user_df else "N/A",
+            "Cluster": int(user_df['user_cluster_k'].iloc[0]) if 'user_cluster_k' in user_df else "N/A",
+            "Recent Sentiment": user_df['caption_sentiment'].value_counts().idxmax() if 'caption_sentiment' in user_df else "N/A",
+            "Avg Engagement Rate": round(user_df['engagement_rate'].mean(), 3) if 'engagement_rate' in user_df else "N/A"
+        })
+        # 2. Identify high-value followers (top commenters)
+        st.markdown("**High-Value Followers (Top Engagers):**")
+        if 'comment_owner_username' in user_df.columns:
+            top_engagers = user_df['comment_owner_username'].value_counts().head(5)
+            st.write(top_engagers)
+            high_value_followers = top_engagers.index.tolist()
+        else:
+            st.info("No per-commenter data available for this user.")
+            high_value_followers = []
+        # 3. Personalized Recommendation for Next Post (for the user)
+        st.markdown("**AI-Recommended Next Post (for Higher Engagement):**")
+        import joblib
+        rec_model_path = 'outputs/model_post_recommendation.joblib'
+        feature_cols_path = 'outputs/model_post_recommendation_features.joblib'
+        if os.path.exists(rec_model_path) and os.path.exists(feature_cols_path):
+            rec_model = joblib.load(rec_model_path)
+            feature_cols = joblib.load(feature_cols_path)
+            rec_features = {}
+            # Map sentiment strings to numeric values for model input
+            sentiment_map = {'positive': 1, 'neutral': 0, 'negative': -1}
+            for feat in feature_cols:
+                if feat == 'caption_sentiment':
+                    val = user_df[feat].iloc[0] if feat in user_df and not user_df[feat].dropna().empty else 0
+                    if isinstance(val, str):
+                        rec_features[feat] = sentiment_map.get(val.lower(), 0)
+                    else:
+                        rec_features[feat] = val
+                elif feat in user_df and not user_df[feat].dropna().empty:
+                    rec_features[feat] = user_df[feat].iloc[0]
+                else:
+                    rec_features[feat] = 0
+            rec = rec_model.recommend(rec_features, user_df=user_df)
+            st.write("**Recommended Caption Sentiment:**", rec.get('caption_sentiment', 'N/A'))
+            st.write("**Recommended Caption Length (words):**", rec.get('caption_length', 'N/A'))
+            st.write("**Recommended Post Category:**", rec.get('category', 'N/A'))
+            st.write("**Recommended Hashtags:**", ', '.join(rec.get('hashtags', [])))
+            st.write("**Recommended Content Theme:**", rec.get('theme', 'N/A'))
+            st.write("**Expected Engagement Rate:**", rec.get('expected_engagement_rate', 'N/A'))
+        else:
+            st.info("Personalized post recommendation model not found. Please train it from the sidebar.")
+        # 4. Personalized Recommendations for High-Value Followers
+        if high_value_followers:
+            st.markdown("**Personalized Recommendations for High-Value Followers:**")
+            # --- Combined Overall Recommendation ---
+            all_recs = [rec]
+            for follower in high_value_followers:
+                follower_comments = user_df[user_df['comment_owner_username'] == follower]
+                follower_sentiment = follower_comments['caption_sentiment'].value_counts().idxmax() if 'caption_sentiment' in follower_comments and not follower_comments.empty else 'neutral'
+                follower_features = rec_features.copy()
+                if isinstance(follower_sentiment, str):
+                    follower_features['caption_sentiment'] = sentiment_map.get(follower_sentiment.lower(), 0)
+                else:
+                    follower_features['caption_sentiment'] = follower_sentiment
+                follower_rec = rec_model.recommend(follower_features, user_df=user_df)
+                all_recs.append(follower_rec)
+            # Aggregate overall recommendation
+            from collections import Counter
+            def most_common(lst):
+                return Counter(lst).most_common(1)[0][0] if lst else 'N/A'
+            sentiments = [r.get('caption_sentiment', None) for r in all_recs if r.get('caption_sentiment', None) is not None]
+            caption_lengths = [r.get('caption_length', None) for r in all_recs if r.get('caption_length', None) is not None]
+            hashtags = sum([r.get('hashtags', []) for r in all_recs if r.get('hashtags', [])], [])
+            engagement_rates = [r.get('expected_engagement_rate', None) for r in all_recs if r.get('expected_engagement_rate', None) is not None]
+            st.markdown("**Combined Overall Recommendation:**")
+            st.write({
+                "Most Common Caption Sentiment": most_common(sentiments),
+                "Average Caption Length (words)": round(sum(caption_lengths)/len(caption_lengths), 2) if caption_lengths else 'N/A',
+                "Most Common Hashtags": ', '.join([h for h, _ in Counter(hashtags).most_common(3)]) if hashtags else 'N/A',
+                "Average Expected Engagement Rate": round(sum(engagement_rates)/len(engagement_rates), 3) if engagement_rates else 'N/A'
+            })
+            st.markdown("---")
+            for follower in high_value_followers:
+                follower_comments = user_df[user_df['comment_owner_username'] == follower]
+                follower_sentiment = follower_comments['caption_sentiment'].value_counts().idxmax() if 'caption_sentiment' in follower_comments and not follower_comments.empty else 'neutral'
+                follower_features = rec_features.copy()
+                # Map follower sentiment to numeric
+                if isinstance(follower_sentiment, str):
+                    follower_features['caption_sentiment'] = sentiment_map.get(follower_sentiment.lower(), 0)
+                else:
+                    follower_features['caption_sentiment'] = follower_sentiment
+                follower_rec = rec_model.recommend(follower_features, user_df=user_df)
+                st.write(f"**Follower:** {follower}")
+                st.write("Recommended Caption Sentiment:", follower_rec.get('caption_sentiment', 'N/A'))
+                st.write("Recommended Caption Length (words):", follower_rec.get('caption_length', 'N/A'))
+                st.write("Recommended Hashtags:", ', '.join(follower_rec.get('hashtags', [])))
+                st.write("Expected Engagement Rate:", follower_rec.get('expected_engagement_rate', 'N/A'))
+                st.markdown("---")
 
 st.info("See logs/project.log for detailed logs and errors.")
