@@ -7,3 +7,6 @@
 2025-05-18 15:51:28,252 - INFO - Starting data processing
 2025-05-18 15:51:28,632 - INFO - Extracted data from 444 posts from 20 users
 2025-05-18 15:51:49,800 - INFO - Finished processing. Final DataFrame shape: (49525, 19)
+2025-05-31 23:43:11,203 - INFO - Starting data processing
+2025-05-31 23:43:11,922 - INFO - Extracted data from 444 posts from 20 users
+2025-05-31 23:43:31,031 - INFO - Finished processing. Final DataFrame shape: (49525, 19)

@@ -8,6 +8,10 @@ from visualizations import engagement_trends
 st.set_page_config(page_title="Instagram User Behavior Analysis", layout="wide")
 st.title("Instagram User Behavior Analysis Dashboard")
 
+# Add a reload button at the top of the app
+if st.button("Reload App"):
+    st.experimental_rerun()
+
 # Sidebar for file selection
 st.sidebar.header("Data Selection & Actions")
 data_file = st.sidebar.file_uploader("Upload cleaned_merged_user_post_data.csv", type=["csv"])
@@ -41,10 +45,19 @@ else:
 if run_analysis:
     with st.spinner("Running Sentiment Analysis..."):
         df = sentiment_analysis.run(df)
+        if df is None:
+            st.error("Sentiment analysis failed. DataFrame is None.")
+            st.stop()
     with st.spinner("Running Clustering/User Segmentation..."):
         df = clustering_segmentation.run(df)
-    with st.spinner("Predicting Engagement..."):
-        engagement_prediction.run(df)
+        if df is None:
+            st.error("Clustering/segmentation failed. DataFrame is None.")
+            st.stop()
+    with st.spinner("Predicting Engagement (Advanced ML Models)..."):
+        df = engagement_prediction.run(df)
+        if df is None:
+            st.error("Engagement prediction failed. DataFrame is None.")
+            st.stop()
     with st.spinner("Generating Engagement Visualizations..."):
         engagement_trends.run(df)
     with st.spinner("Generating Recommendations..."):
@@ -54,7 +67,7 @@ if run_analysis:
     # Save processed data for download
     st.download_button(
         label="Download Results CSV",
-        data=df.to_csv(index=False).encode('utf-8'),
+        data=df.to_csv(index=False),
         file_name="final_with_all_outputs.csv",
         mime="text/csv"
     )
@@ -119,5 +132,139 @@ if 'hashtags' in df.columns:
             st.table(similar_posts_hash)
     except Exception as e:
         st.warning(f"Collaborative filtering failed: {e}")
+
+# --- Download trained models section ---
+import streamlit as st
+import os
+
+st.subheader("Download Trained ML Models")
+model_files = [
+    ("Linear Regression", "outputs/model_linear_regression.joblib"),
+    ("Ridge Regression", "outputs/model_ridge.joblib"),
+    ("Random Forest", "outputs/model_random_forest.joblib"),
+    ("Feature Columns", "outputs/model_features.joblib")
+]
+for label, path in model_files:
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            st.download_button(f"Download {label} Model", f, file_name=os.path.basename(path))
+    else:
+        st.warning(f"{label} model not found. Run the analysis pipeline first.")
+
+# --- ML Model Evaluation UI ---
+st.subheader("Predict Engagement for Custom Input")
+import joblib
+import numpy as np
+
+# Load models and features if available
+model_paths = {
+    'LinearRegression': 'outputs/model_linear_regression.joblib',
+    'Ridge': 'outputs/model_ridge.joblib',
+    'RandomForest': 'outputs/model_random_forest.joblib',
+    'Features': 'outputs/model_features.joblib'
+}
+models = {}
+for k, v in model_paths.items():
+    if os.path.exists(v):
+        models[k] = joblib.load(v)
+
+# Only show prediction form if models and features are loaded
+if 'Features' in models and len(models['Features']) > 0:
+    st.markdown("Enter post/user details to predict engagement:")
+    user_input = {}
+    for feat in models['Features']:
+        # Provide reasonable defaults and input types
+        if feat in ['caption_sentiment', 'caption_sentiment_vader']:
+            user_input[feat] = st.number_input(f"{feat}", value=0.0, format="%.3f")
+        elif feat in ['hour_of_day', 'day_of_week', 'user_cluster_k', 'user_cluster_agglom']:
+            user_input[feat] = st.number_input(f"{feat}", value=0, step=1)
+        else:
+            user_input[feat] = st.number_input(f"{feat}", value=0.0)
+    if st.button("Predict Engagement"):
+        X_pred = np.array([[user_input.get(f, 0) for f in models['Features']]])
+        st.write("Predictions:")
+        for k in ['LinearRegression', 'Ridge', 'RandomForest']:
+            if k in models:
+                pred = models[k].predict(X_pred)[0]
+                st.write(f"{k}: {pred:.2f}")
+else:
+    st.info("Trained models not found or features missing. Run the analysis pipeline first.")
+
+# --- Predict Likes and Comments for Custom Input ---
+st.subheader("Predict Likes and Comments for Custom Input (Separate Models)")
+import joblib
+import numpy as np
+
+# Load models and features for likes and comments if available
+model_paths_likes = {
+    'LinearRegression_likes': 'outputs/model_linear_regression_likes.joblib',
+    'Ridge_likes': 'outputs/model_ridge_likes.joblib',
+    'RandomForest_likes': 'outputs/model_random_forest_likes.joblib',
+    'Features_likes': 'outputs/model_features_likes.joblib'
+}
+model_paths_comments = {
+    'LinearRegression_comments': 'outputs/model_linear_regression_comments.joblib',
+    'Ridge_comments': 'outputs/model_ridge_comments.joblib',
+    'RandomForest_comments': 'outputs/model_random_forest_comments.joblib',
+    'Features_comments': 'outputs/model_features_comments.joblib'
+}
+models_likes = {}
+for k, v in model_paths_likes.items():
+    if os.path.exists(v):
+        models_likes[k] = joblib.load(v)
+models_comments = {}
+for k, v in model_paths_comments.items():
+    if os.path.exists(v):
+        models_comments[k] = joblib.load(v)
+
+# Only show prediction form if models and features are loaded for both
+if (
+    'Features_likes' in models_likes and len(models_likes['Features_likes']) > 0 and
+    'Features_comments' in models_comments and len(models_comments['Features_comments']) > 0
+):
+    st.markdown("Enter post/user details to predict likes and comments:")
+    # Exclude 'likes' from likes input, and 'comments'/'comments_count' from comments input
+    features_likes = [f for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']]
+    features_comments = [f for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']]
+    all_features = sorted(set(features_likes) | set(features_comments))
+    user_input = {}
+    for feat in all_features:
+        if feat in ['caption_sentiment', 'caption_sentiment_vader']:
+            user_input[feat] = st.number_input(f"{feat}", value=0.0, format="%.3f", key=f"likecom_{feat}")
+        elif feat in ['hour_of_day', 'day_of_week', 'user_cluster_k', 'user_cluster_agglom']:
+            user_input[feat] = st.number_input(f"{feat}", value=0, step=1, key=f"likecom_{feat}")
+        else:
+            user_input[feat] = st.number_input(f"{feat}", value=0.0, key=f"likecom_{feat}")
+    if st.button("Predict Likes and Comments", key="predict_likes_comments"):
+        # Use the exact feature order and count for each model
+        X_pred_likes = np.array([[user_input.get(f, 0) for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']]])
+        X_pred_comments = np.array([[user_input.get(f, 0) for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']]])
+        # If the number of features does not match, show a warning and skip prediction
+        if X_pred_likes.shape[1] != len([f for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']]):
+            st.error(f"Input for likes prediction has {X_pred_likes.shape[1]} features, but model expects {len([f for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']])}.")
+        else:
+            st.write("Predicted Likes:")
+            for k in ['LinearRegression_likes', 'Ridge_likes', 'RandomForest_likes']:
+                if k in models_likes:
+                    pred = models_likes[k].predict(X_pred_likes)[0]
+                    st.write(f"{k.replace('_likes','')}: {pred:.2f}")
+        if X_pred_comments.shape[1] != len([f for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']]):
+            st.error(f"Input for comments prediction has {X_pred_comments.shape[1]} features, but model expects {len([f for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']])}.")
+        else:
+            st.write("Predicted Comments:")
+            for k in ['LinearRegression_comments', 'Ridge_comments', 'RandomForest_comments']:
+                if k in models_comments:
+                    pred = models_comments[k].predict(X_pred_comments)[0]
+                    st.write(f"{k.replace('_comments','')}: {pred:.2f}")
+else:
+    st.info("Trained like/comment models or features not found. Please run the training pipeline for both targets.")
+
+# Add a button to train like/comment models as a pipeline
+st.subheader("Train Like/Comment ML Models Pipeline")
+if st.button("Train Like/Comment Models (Pipeline)"):
+    with st.spinner("Training like/comment ML models..."):
+        from analysis.engagement_prediction import train_and_save_like_comment_models
+        train_and_save_like_comment_models(df)
+    st.success("Like/comment models trained and saved! You can now use the prediction UI below.")
 
 st.info("See logs/project.log for detailed logs and errors.")

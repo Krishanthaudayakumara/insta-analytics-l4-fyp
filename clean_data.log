@@ -20,3 +20,11 @@
 2025-05-18 15:52:02,153 - INFO - Removed 'Username' column
 2025-05-18 15:52:02,155 - INFO - Added engagement_rate feature.
 2025-05-18 15:52:04,482 - INFO - Saved cleaned data to /home/krishantha/Github/fyp-l4/data/processed_data/cleaned_merged_user_post_data.csv
+2025-05-31 23:43:41,856 - INFO - Starting data cleaning and deduplication
+2025-05-31 23:43:43,670 - INFO - Loaded data: 49525 rows
+2025-05-31 23:43:43,679 - INFO - Removed rows with 0 comments_count. Remaining rows: 48842
+2025-05-31 23:43:43,696 - INFO - Removed rows with empty caption or hashtags. Remaining rows: 47883
+2025-05-31 23:43:44,748 - INFO - Removed duplicate rows. Remaining rows: 47514
+2025-05-31 23:43:44,757 - INFO - Removed 'Username' column
+2025-05-31 23:43:44,759 - INFO - Added engagement_rate feature.
+2025-05-31 23:43:47,236 - INFO - Saved cleaned data to /home/krishantha/Github/fyp-l4/data/processed_data/cleaned_merged_user_post_data.csv
