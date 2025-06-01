@@ -1,11 +1,198 @@
 from sklearn.linear_model import LinearRegression, Ridge, LogisticRegression
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, accuracy_score, classification_report
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import mean_squared_error, accuracy_score, classification_report, mean_absolute_error, r2_score
 import logging
 import numpy as np
 import pandas as pd
 import joblib
+import json
+from datetime import datetime
+
+def calculate_comprehensive_metrics(y_true, y_pred, model_name="Model"):
+    """
+    Calculate comprehensive evaluation metrics for regression models.
+    
+    Args:
+        y_true: True target values
+        y_pred: Predicted values
+        model_name: Name of the model for reporting
+    
+    Returns:
+        dict: Dictionary containing all evaluation metrics
+    """
+    # Basic regression metrics
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    
+    # Mean Absolute Percentage Error (MAPE)
+    # Handle division by zero for MAPE
+    y_true_nonzero = y_true + 1e-8  # Add small epsilon to avoid division by zero
+    mape = np.mean(np.abs((y_true - y_pred) / y_true_nonzero)) * 100
+    
+    # Explained Variance Score
+    explained_variance = 1 - (np.var(y_true - y_pred) / np.var(y_true))
+    
+    # Max Error
+    max_error = np.max(np.abs(y_true - y_pred))
+    
+    # Additional custom metrics
+    residuals = y_true - y_pred
+    residuals_std = np.std(residuals)
+    residuals_mean = np.mean(residuals)
+    
+    # Percentage of predictions within certain error bounds
+    within_10_percent = np.mean(np.abs(residuals / (y_true + 1e-8)) <= 0.1) * 100
+    within_20_percent = np.mean(np.abs(residuals / (y_true + 1e-8)) <= 0.2) * 100
+    
+    metrics = {
+        'Model': model_name,
+        'MSE': round(mse, 4),
+        'RMSE': round(rmse, 4),
+        'MAE': round(mae, 4),
+        'R²_Score': round(r2, 4),
+        'MAPE_%': round(mape, 2),
+        'Explained_Variance': round(explained_variance, 4),
+        'Max_Error': round(max_error, 2),
+        'Residuals_Mean': round(residuals_mean, 4),
+        'Residuals_Std': round(residuals_std, 4),
+        'Within_10%_Error': round(within_10_percent, 1),
+        'Within_20%_Error': round(within_20_percent, 1),
+        'Evaluation_Date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    return metrics
+
+def evaluate_model_with_cross_validation(model, X, y, cv_folds=5, model_name="Model"):
+    """
+    Evaluate model using cross-validation and return comprehensive metrics.
+    
+    Args:
+        model: Trained sklearn model
+        X: Feature matrix
+        y: Target vector
+        cv_folds: Number of cross-validation folds
+        model_name: Name of the model
+    
+    Returns:
+        dict: Cross-validation metrics
+    """
+    # Cross-validation scores
+    cv_mse_scores = -cross_val_score(model, X, y, cv=cv_folds, scoring='neg_mean_squared_error')
+    cv_mae_scores = -cross_val_score(model, X, y, cv=cv_folds, scoring='neg_mean_absolute_error')
+    cv_r2_scores = cross_val_score(model, X, y, cv=cv_folds, scoring='r2')
+    
+    cv_metrics = {
+        'Model': model_name,
+        'CV_MSE_Mean': round(np.mean(cv_mse_scores), 4),
+        'CV_MSE_Std': round(np.std(cv_mse_scores), 4),
+        'CV_RMSE_Mean': round(np.sqrt(np.mean(cv_mse_scores)), 4),
+        'CV_MAE_Mean': round(np.mean(cv_mae_scores), 4),
+        'CV_MAE_Std': round(np.std(cv_mae_scores), 4),
+        'CV_R²_Mean': round(np.mean(cv_r2_scores), 4),
+        'CV_R²_Std': round(np.std(cv_r2_scores), 4),
+        'CV_Folds': cv_folds
+    }
+    
+    return cv_metrics
+
+def save_evaluation_results(evaluation_results, target_type="engagement"):
+    """
+    Save evaluation results to JSON file for later viewing.
+    
+    Args:
+        evaluation_results: List of evaluation dictionaries
+        target_type: Type of target being evaluated (engagement, likes, comments)
+    """
+    filename = f'outputs/model_evaluation_{target_type}.json'
+    
+    # Load existing results if file exists
+    try:
+        with open(filename, 'r') as f:
+            existing_results = json.load(f)
+    except FileNotFoundError:
+        existing_results = []
+    
+    # Add timestamp and append new results
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    new_entry = {
+        'timestamp': timestamp,
+        'evaluation_results': evaluation_results
+    }
+    
+    existing_results.append(new_entry)
+    
+    # Keep only last 10 evaluations to prevent file from growing too large
+    if len(existing_results) > 10:
+        existing_results = existing_results[-10:]
+    
+    # Save updated results
+    with open(filename, 'w') as f:
+        json.dump(existing_results, f, indent=2)
+    
+    print(f"Evaluation results saved to {filename}")
+
+def load_evaluation_results(target_type="engagement"):
+    """
+    Load evaluation results from JSON file.
+    
+    Args:
+        target_type: Type of target (engagement, likes, comments)
+    
+    Returns:
+        dict: Latest evaluation results or empty dict if not found
+    """
+    filename = f'outputs/model_evaluation_{target_type}.json'
+    
+    try:
+        with open(filename, 'r') as f:
+            all_results = json.load(f)
+        
+        if all_results:
+            # Return the most recent evaluation
+            return all_results[-1]['evaluation_results']
+        else:
+            return []
+    except FileNotFoundError:
+        return []
+
+def create_evaluation_comparison_df(target_types=["engagement", "likes", "comments"]):
+    """
+    Create a comprehensive comparison DataFrame of all model evaluations.
+    
+    Args:
+        target_types: List of target types to include
+    
+    Returns:
+        pandas.DataFrame: Comparison table of all models
+    """
+    all_results = []
+    
+    for target_type in target_types:
+        results = load_evaluation_results(target_type)
+        if results:
+            for result in results:
+                result['Target'] = target_type.title()
+                all_results.append(result)
+    
+    if all_results:
+        comparison_df = pd.DataFrame(all_results)
+        
+        # Reorder columns for better display
+        key_columns = ['Target', 'Model', 'MSE', 'RMSE', 'MAE', 'R²_Score', 'MAPE_%', 
+                      'CV_R²_Mean', 'CV_R²_Std', 'Within_10%_Error', 'Within_20%_Error']
+        
+        # Only include columns that exist
+        available_columns = [col for col in key_columns if col in comparison_df.columns]
+        other_columns = [col for col in comparison_df.columns if col not in available_columns]
+        
+        comparison_df = comparison_df[available_columns + other_columns]
+        
+        return comparison_df
+    else:
+        return pd.DataFrame()
 
 class PostRecommendationModel:
     def __init__(self, model, feature_cols):
@@ -197,27 +384,67 @@ def run(df):
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
     y = df['Comments'] if 'Comments' in df.columns else df['comments_count']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    results = {}
+    
+    # Store all evaluation results
+    all_evaluation_results = []
+    
     # Linear Regression
     model_lr = LinearRegression()
     model_lr.fit(X_train, y_train)
     pred_lr = model_lr.predict(X_test)
-    mse_lr = mean_squared_error(y_test, pred_lr)
-    results['LinearRegression'] = mse_lr
+    
+    # Comprehensive evaluation
+    lr_metrics = calculate_comprehensive_metrics(y_test, pred_lr, "Linear Regression")
+    lr_cv_metrics = evaluate_model_with_cross_validation(model_lr, X, y, cv_folds=5, model_name="Linear Regression")
+    lr_metrics.update(lr_cv_metrics)
+    all_evaluation_results.append(lr_metrics)
+    
     # Ridge Regression
     model_ridge = Ridge()
     model_ridge.fit(X_train, y_train)
     pred_ridge = model_ridge.predict(X_test)
-    mse_ridge = mean_squared_error(y_test, pred_ridge)
-    results['Ridge'] = mse_ridge
+    
+    ridge_metrics = calculate_comprehensive_metrics(y_test, pred_ridge, "Ridge Regression")
+    ridge_cv_metrics = evaluate_model_with_cross_validation(model_ridge, X, y, cv_folds=5, model_name="Ridge Regression")
+    ridge_metrics.update(ridge_cv_metrics)
+    all_evaluation_results.append(ridge_metrics)
+    
     # Random Forest
     model_rf = RandomForestRegressor(n_estimators=100, random_state=42)
     model_rf.fit(X_train, y_train)
     pred_rf = model_rf.predict(X_test)
-    mse_rf = mean_squared_error(y_test, pred_rf)
-    results['RandomForest'] = mse_rf
+    
+    rf_metrics = calculate_comprehensive_metrics(y_test, pred_rf, "Random Forest")
+    rf_cv_metrics = evaluate_model_with_cross_validation(model_rf, X, y, cv_folds=5, model_name="Random Forest")
+    rf_metrics.update(rf_cv_metrics)
+    all_evaluation_results.append(rf_metrics)
+    
+    # Print comprehensive results
+    print("\n=== COMPREHENSIVE MODEL EVALUATION RESULTS ===")
+    for result in all_evaluation_results:
+        print(f"\n{result['Model']}:")
+        print(f"  MSE: {result['MSE']:.4f}")
+        print(f"  RMSE: {result['RMSE']:.4f}")
+        print(f"  MAE: {result['MAE']:.4f}")
+        print(f"  R² Score: {result['R²_Score']:.4f}")
+        print(f"  MAPE: {result['MAPE_%']:.2f}%")
+        print(f"  Cross-Val R² (mean ± std): {result['CV_R²_Mean']:.4f} ± {result['CV_R²_Std']:.4f}")
+        print(f"  Predictions within 10% error: {result['Within_10%_Error']:.1f}%")
+        print(f"  Predictions within 20% error: {result['Within_20%_Error']:.1f}%")
+    
+    # Legacy MSE results for backward compatibility
+    results = {
+        'LinearRegression': lr_metrics['MSE'],
+        'Ridge': ridge_metrics['MSE'],
+        'RandomForest': rf_metrics['MSE']
+    }
+    
     logging.info(f"Engagement Prediction MSEs: {results}")
     print("Model MSEs:", results)
+    
+    # Save comprehensive evaluation results
+    save_evaluation_results(all_evaluation_results, "engagement")
+    
     # Save trained models for download
     joblib.dump(model_lr, 'outputs/model_linear_regression.joblib')
     joblib.dump(model_ridge, 'outputs/model_ridge.joblib')
@@ -241,6 +468,7 @@ def train_and_save_like_comment_models(df):
     # Comments models: exclude 'comments', 'comments_count', 'likes' from X
     X_cols_comments = [col for col in feature_cols if col in df.columns and col.lower() not in ['comments', 'comments_count', 'likes']]
     X_comments = df[X_cols_comments].apply(pd.to_numeric, errors='coerce').fillna(0)
+    
     # --- Likes ---
     if 'Likes' in df.columns:
         y_likes = df['Likes']
@@ -255,29 +483,109 @@ def train_and_save_like_comment_models(df):
         y_comments = df['comments_count']
     else:
         y_comments = None
+    
     from sklearn.linear_model import LinearRegression, Ridge
     from sklearn.ensemble import RandomForestRegressor
     from sklearn.model_selection import train_test_split
+    
+    # Store evaluation results for both targets
+    likes_evaluation_results = []
+    comments_evaluation_results = []
+    
     # Likes models
     if y_likes is not None:
         X_train, X_test, y_train, y_test = train_test_split(X_likes, y_likes, test_size=0.2, random_state=42)
+        
+        # Linear Regression for Likes
         model_lr_likes = LinearRegression().fit(X_train, y_train)
+        pred_lr = model_lr_likes.predict(X_test)
+        lr_likes_metrics = calculate_comprehensive_metrics(y_test, pred_lr, "Linear Regression (Likes)")
+        lr_likes_cv = evaluate_model_with_cross_validation(model_lr_likes, X_likes, y_likes, model_name="Linear Regression (Likes)")
+        lr_likes_metrics.update(lr_likes_cv)
+        likes_evaluation_results.append(lr_likes_metrics)
+        
+        # Ridge Regression for Likes
         model_ridge_likes = Ridge().fit(X_train, y_train)
+        pred_ridge = model_ridge_likes.predict(X_test)
+        ridge_likes_metrics = calculate_comprehensive_metrics(y_test, pred_ridge, "Ridge Regression (Likes)")
+        ridge_likes_cv = evaluate_model_with_cross_validation(model_ridge_likes, X_likes, y_likes, model_name="Ridge Regression (Likes)")
+        ridge_likes_metrics.update(ridge_likes_cv)
+        likes_evaluation_results.append(ridge_likes_metrics)
+        
+        # Random Forest for Likes
         model_rf_likes = RandomForestRegressor(n_estimators=100, random_state=42).fit(X_train, y_train)
+        pred_rf = model_rf_likes.predict(X_test)
+        rf_likes_metrics = calculate_comprehensive_metrics(y_test, pred_rf, "Random Forest (Likes)")
+        rf_likes_cv = evaluate_model_with_cross_validation(model_rf_likes, X_likes, y_likes, model_name="Random Forest (Likes)")
+        rf_likes_metrics.update(rf_likes_cv)
+        likes_evaluation_results.append(rf_likes_metrics)
+        
+        # Save models
         joblib.dump(model_lr_likes, 'outputs/model_linear_regression_likes.joblib')
         joblib.dump(model_ridge_likes, 'outputs/model_ridge_likes.joblib')
         joblib.dump(model_rf_likes, 'outputs/model_random_forest_likes.joblib')
         joblib.dump(X_cols_likes, 'outputs/model_features_likes.joblib')
+        
+        # Print comprehensive results for likes
+        print("\n=== LIKES PREDICTION MODEL EVALUATION ===")
+        for result in likes_evaluation_results:
+            print(f"\n{result['Model']}:")
+            print(f"  MSE: {result['MSE']:.4f}")
+            print(f"  RMSE: {result['RMSE']:.4f}")
+            print(f"  R² Score: {result['R²_Score']:.4f}")
+            print(f"  MAPE: {result['MAPE_%']:.2f}%")
+            print(f"  Cross-Val R² (mean ± std): {result['CV_R²_Mean']:.4f} ± {result['CV_R²_Std']:.4f}")
+        
+        # Save evaluation results
+        save_evaluation_results(likes_evaluation_results, "likes")
+    
     # Comments models
     if y_comments is not None:
         X_train, X_test, y_train, y_test = train_test_split(X_comments, y_comments, test_size=0.2, random_state=42)
+        
+        # Linear Regression for Comments
         model_lr_comments = LinearRegression().fit(X_train, y_train)
+        pred_lr = model_lr_comments.predict(X_test)
+        lr_comments_metrics = calculate_comprehensive_metrics(y_test, pred_lr, "Linear Regression (Comments)")
+        lr_comments_cv = evaluate_model_with_cross_validation(model_lr_comments, X_comments, y_comments, model_name="Linear Regression (Comments)")
+        lr_comments_metrics.update(lr_comments_cv)
+        comments_evaluation_results.append(lr_comments_metrics)
+        
+        # Ridge Regression for Comments
         model_ridge_comments = Ridge().fit(X_train, y_train)
+        pred_ridge = model_ridge_comments.predict(X_test)
+        ridge_comments_metrics = calculate_comprehensive_metrics(y_test, pred_ridge, "Ridge Regression (Comments)")
+        ridge_comments_cv = evaluate_model_with_cross_validation(model_ridge_comments, X_comments, y_comments, model_name="Ridge Regression (Comments)")
+        ridge_comments_metrics.update(ridge_comments_cv)
+        comments_evaluation_results.append(ridge_comments_metrics)
+        
+        # Random Forest for Comments
         model_rf_comments = RandomForestRegressor(n_estimators=100, random_state=42).fit(X_train, y_train)
+        pred_rf = model_rf_comments.predict(X_test)
+        rf_comments_metrics = calculate_comprehensive_metrics(y_test, pred_rf, "Random Forest (Comments)")
+        rf_comments_cv = evaluate_model_with_cross_validation(model_rf_comments, X_comments, y_comments, model_name="Random Forest (Comments)")
+        rf_comments_metrics.update(rf_comments_cv)
+        comments_evaluation_results.append(rf_comments_metrics)
+        
+        # Save models
         joblib.dump(model_lr_comments, 'outputs/model_linear_regression_comments.joblib')
         joblib.dump(model_ridge_comments, 'outputs/model_ridge_comments.joblib')
         joblib.dump(model_rf_comments, 'outputs/model_random_forest_comments.joblib')
         joblib.dump(X_cols_comments, 'outputs/model_features_comments.joblib')
+        
+        # Print comprehensive results for comments
+        print("\n=== COMMENTS PREDICTION MODEL EVALUATION ===")
+        for result in comments_evaluation_results:
+            print(f"\n{result['Model']}:")
+            print(f"  MSE: {result['MSE']:.4f}")
+            print(f"  RMSE: {result['RMSE']:.4f}")
+            print(f"  R² Score: {result['R²_Score']:.4f}")
+            print(f"  MAPE: {result['MAPE_%']:.2f}%")
+            print(f"  Cross-Val R² (mean ± std): {result['CV_R²_Mean']:.4f} ± {result['CV_R²_Std']:.4f}")
+        
+        # Save evaluation results
+        save_evaluation_results(comments_evaluation_results, "comments")
+    
     return True
 
 def train_and_save_post_recommendation_model(df):

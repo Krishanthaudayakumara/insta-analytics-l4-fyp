@@ -17,7 +17,7 @@ st.title("Instagram User Behavior Analysis Dashboard")
 
 # Add a reload button at the top of the app
 if st.button("Reload App"):
-    st.experimental_rerun()
+    st.rerun()
 
 # Sidebar for file selection
 st.sidebar.header("Data Selection & Actions")
@@ -313,6 +313,22 @@ if 'df' in locals() or 'df' in globals():
         st.success("Personalized post recommendation model trained and saved!")
 else:
     st.sidebar.info("Please load data before training models.")
+
+# --- Model Performance Evaluation Dashboard ---
+st.header("🎯 Model Performance Evaluation")
+st.markdown("---")
+
+# Store dataframe in session state for dashboard access
+if 'df' in locals() and df is not None:
+    st.session_state.df = df
+
+# Import the evaluation dashboard
+from model_evaluation_dashboard import show_model_evaluation_dashboard
+
+# Display the comprehensive model evaluation dashboard
+show_model_evaluation_dashboard()
+
+st.markdown("---")
 
 # --- Advanced Personalized Post Recommendations ---
 st.subheader("Advanced Personalized Post Recommendations")
