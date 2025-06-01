@@ -88,6 +88,72 @@ class PostRecommendationModel:
                     rates = top_posts['engagement_rate'].dropna().astype(float)
                     if not rates.empty:
                         best_engagement_rate = round(rates.mean(), 3)
+        
+        # Generate keyword recommendations based on user's high-performing posts
+        best_keywords = []
+        if user_df is not None and not user_df.empty:
+            try:
+                import re
+                import nltk
+                from collections import Counter
+                
+                # Ensure NLTK resources are available
+                try:
+                    nltk.data.find('tokenizers/punkt')
+                    nltk.data.find('corpora/stopwords')
+                except LookupError:
+                    try:
+                        nltk.download('punkt', quiet=True)
+                        nltk.download('stopwords', quiet=True)
+                    except:
+                        pass  # Skip if download fails
+                
+                from nltk.corpus import stopwords
+                from nltk.tokenize import word_tokenize
+                
+                # Get top-performing posts for keyword analysis
+                if 'engagement_rate' in user_df.columns:
+                    engagement_threshold = user_df['engagement_rate'].quantile(0.75)
+                    top_keyword_posts = user_df[user_df['engagement_rate'] >= engagement_threshold]
+                else:
+                    # Fallback to top posts by likes
+                    if 'likes' in user_df.columns and len(user_df) > 1:
+                        likes_threshold = user_df['likes'].quantile(0.75)
+                        top_keyword_posts = user_df[user_df['likes'] >= likes_threshold]
+                    else:
+                        top_keyword_posts = user_df.head(5)
+                
+                # Extract keywords from captions
+                caption_col = 'caption' if 'caption' in top_keyword_posts.columns else 'Caption'
+                if caption_col in top_keyword_posts.columns and not top_keyword_posts[caption_col].dropna().empty:
+                    all_captions = ' '.join(top_keyword_posts[caption_col].dropna().astype(str))
+                    
+                    # Clean text: remove hashtags, mentions, URLs, and special characters
+                    cleaned_text = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', all_captions.lower())
+                    
+                    # Tokenize and filter
+                    stop_words = set(stopwords.words('english'))
+                    words = word_tokenize(cleaned_text)
+                    keywords = [word for word in words if word.isalpha() and len(word) > 2 and word not in stop_words]
+                    
+                    # Get top keywords
+                    keyword_counts = Counter(keywords)
+                    best_keywords = [word for word, _ in keyword_counts.most_common(6)]
+                    
+            except Exception:
+                # If keyword extraction fails, provide category-based defaults
+                category_keywords = {
+                    'travel': ['adventure', 'explore', 'journey', 'destination'],
+                    'fashion': ['style', 'outfit', 'trendy', 'look'],
+                    'food': ['delicious', 'tasty', 'recipe', 'fresh'],
+                    'fitness': ['workout', 'healthy', 'strong', 'motivation'],
+                    'beauty': ['skincare', 'natural', 'glow', 'beautiful'],
+                    'lifestyle': ['inspiration', 'happiness', 'mindful', 'grateful']
+                }
+                
+                if best_category != 'N/A' and str(best_category).lower() in category_keywords:
+                    best_keywords = category_keywords[str(best_category).lower()]
+        
         # If category is encoded, decode it
         if best_category != 'N/A':
             try:
@@ -105,7 +171,8 @@ class PostRecommendationModel:
             'category': best_category,
             'hashtags': best_hashtags,
             'theme': best_theme,
-            'expected_engagement_rate': best_engagement_rate
+            'expected_engagement_rate': best_engagement_rate,
+            'keywords': best_keywords
         }
         return rec
 

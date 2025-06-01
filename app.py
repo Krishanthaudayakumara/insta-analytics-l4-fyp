@@ -455,6 +455,89 @@ else:
             if rec.get('theme', None) not in (None, '', 'N/A'):
                 st.write("**Recommended Content Theme:**", rec.get('theme'))
             
+            # Show keywords from the recommendation model or analyze user's posts
+            model_keywords = rec.get('keywords', [])
+            if model_keywords:
+                st.write("**Recommended Caption Keywords:**", ', '.join(model_keywords))
+            else:
+                # Fallback to manual keyword analysis
+                st.write("**Recommended Caption Keywords:**")
+                try:
+                    from collections import Counter
+                    import re
+                    import nltk
+                    
+                    # Ensure NLTK resources are available
+                    try:
+                        nltk.data.find('tokenizers/punkt')
+                    except LookupError:
+                        nltk.download('punkt')
+                    try:
+                        nltk.data.find('corpora/stopwords')
+                    except LookupError:
+                        nltk.download('stopwords')
+                    
+                    from nltk.corpus import stopwords
+                    from nltk.tokenize import word_tokenize
+                    
+                    # Get user's high-engagement posts (top 25% by engagement rate)
+                    if 'engagement_rate' in user_df and not user_df['engagement_rate'].dropna().empty:
+                        engagement_threshold = user_df['engagement_rate'].quantile(0.75)
+                        high_engagement_posts = user_df[user_df['engagement_rate'] >= engagement_threshold]
+                    else:
+                        # Fallback to top posts by likes if no engagement rate
+                        if 'likes' in user_df and len(user_df) > 1:
+                            likes_threshold = user_df['likes'].quantile(0.75)
+                            high_engagement_posts = user_df[user_df['likes'] >= likes_threshold]
+                        else:
+                            high_engagement_posts = user_df.head(5)  # Use recent posts
+                    
+                    # Extract keywords from captions of high-engagement posts
+                    caption_col = 'caption' if 'caption' in high_engagement_posts else 'Caption'
+                    if caption_col in high_engagement_posts and not high_engagement_posts[caption_col].dropna().empty:
+                        all_captions = ' '.join(high_engagement_posts[caption_col].dropna().astype(str))
+                        
+                        # Clean and tokenize text
+                        # Remove hashtags, mentions, URLs, and special characters
+                        cleaned_text = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', all_captions.lower())
+                        
+                        # Tokenize and remove stopwords
+                        stop_words = set(stopwords.words('english'))
+                        words = word_tokenize(cleaned_text)
+                        keywords = [word for word in words if word.isalpha() and len(word) > 2 and word not in stop_words]
+                        
+                        # Get most common keywords
+                        keyword_counts = Counter(keywords)
+                        top_keywords = [word for word, _ in keyword_counts.most_common(8)]
+                        
+                        if top_keywords:
+                            st.write(f"💡 **Based on your top-performing posts:** {', '.join(top_keywords)}")
+                            
+                            # Additional category-specific keywords
+                            category_keywords = {
+                                'travel': ['adventure', 'journey', 'explore', 'destination', 'wanderlust', 'vacation', 'trip'],
+                                'fashion': ['style', 'outfit', 'trendy', 'chic', 'fashionable', 'look', 'design'],
+                                'food': ['delicious', 'tasty', 'recipe', 'yummy', 'flavor', 'cooking', 'fresh'],
+                                'fitness': ['workout', 'healthy', 'strong', 'training', 'motivation', 'goals', 'fit'],
+                                'beauty': ['skincare', 'makeup', 'glow', 'natural', 'beautiful', 'radiant', 'care'],
+                                'lifestyle': ['inspiration', 'motivation', 'happiness', 'positivity', 'mindful', 'grateful'],
+                                'business': ['success', 'growth', 'innovation', 'professional', 'strategy', 'leadership']
+                            }
+                            
+                            user_category = user_df['Category'].iloc[0] if 'Category' in user_df and not user_df['Category'].dropna().empty else None
+                            if user_category and str(user_category).lower() in category_keywords:
+                                category_words = category_keywords[str(user_category).lower()]
+                                # Remove already suggested keywords
+                                new_category_words = [w for w in category_words if w not in top_keywords][:4]
+                                if new_category_words:
+                                    st.write(f"🎯 **Category-specific suggestions ({user_category}):** {', '.join(new_category_words)}")
+                        else:
+                            st.write("No specific keywords identified from your posts.")
+                    else:
+                        st.write("No caption data available for keyword analysis.")
+                except Exception as e:
+                    st.write("Keyword analysis unavailable.")
+            
             # Add explanatory info box about engagement rate
             with st.expander("ℹ️ What is Engagement Rate?", expanded=False):
                 st.markdown("""
@@ -715,5 +798,102 @@ else:
                 st.write("Recommended Hashtags:", ', '.join(follower_rec.get('hashtags', [])))
                 st.write("Expected Engagement Rate:", follower_rec.get('expected_engagement_rate', 'N/A'))
                 st.markdown("---")
+
+# --- Trending Keywords Analysis ---
+st.subheader("📈 Trending Keywords in Dataset")
+try:
+    from collections import Counter
+    import re
+    import nltk
+    
+    # Get captions from high-engagement posts across the dataset
+    caption_col = 'caption' if 'caption' in df else 'Caption'
+    if caption_col in df and not df[caption_col].dropna().empty:
+        # Filter for high-engagement posts (top 20% by engagement rate)
+        if 'engagement_rate' in df and not df['engagement_rate'].dropna().empty:
+            engagement_threshold = df['engagement_rate'].quantile(0.8)
+            trending_posts = df[df['engagement_rate'] >= engagement_threshold]
+        else:
+            # Fallback to top posts by likes
+            if 'likes' in df and len(df) > 100:
+                likes_threshold = df['likes'].quantile(0.8)
+                trending_posts = df[df['likes'] >= likes_threshold]
+            else:
+                trending_posts = df.head(100)  # Use sample
+        
+        if not trending_posts.empty:
+            # Sample for performance if dataset is large
+            if len(trending_posts) > 1000:
+                trending_posts = trending_posts.sample(n=1000)
+            
+            # Extract keywords from trending captions
+            all_trending_captions = ' '.join(trending_posts[caption_col].dropna().astype(str))
+            
+            # Clean and tokenize
+            cleaned_text = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', all_trending_captions.lower())
+            
+            # Ensure NLTK resources
+            try:
+                nltk.data.find('tokenizers/punkt')
+                nltk.data.find('corpora/stopwords')
+            except LookupError:
+                st.info("Downloading language resources...")
+                nltk.download('punkt', quiet=True)
+                nltk.download('stopwords', quiet=True)
+            
+            from nltk.corpus import stopwords
+            from nltk.tokenize import word_tokenize
+            
+            stop_words = set(stopwords.words('english'))
+            words = word_tokenize(cleaned_text)
+            keywords = [word for word in words if word.isalpha() and len(word) > 2 and word not in stop_words]
+            
+            # Get trending keywords
+            keyword_counts = Counter(keywords)
+            trending_keywords = [word for word, count in keyword_counts.most_common(15)]
+            
+            if trending_keywords:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**🔥 Most Used Words in High-Engagement Posts:**")
+                    st.write(", ".join(trending_keywords[:8]))
+                
+                with col2:
+                    st.markdown("**💡 Content Strategy Insights:**")
+                    # Analyze keyword patterns
+                    emotion_words = [w for w in trending_keywords if w in ['love', 'happy', 'amazing', 'beautiful', 'awesome', 'incredible', 'perfect', 'wonderful', 'excited', 'grateful']]
+                    action_words = [w for w in trending_keywords if w in ['explore', 'discover', 'create', 'share', 'enjoy', 'experience', 'celebrate', 'achieve', 'inspire', 'transform']]
+                    
+                    if emotion_words:
+                        st.write(f"😊 **Emotion keywords:** {', '.join(emotion_words[:3])}")
+                    if action_words:
+                        st.write(f"⚡ **Action keywords:** {', '.join(action_words[:3])}")
+                
+                # Category-specific trending analysis
+                if 'Category' in df and not df['Category'].dropna().empty:
+                    st.markdown("**📊 Trending by Category:**")
+                    categories = df['Category'].value_counts().head(3).index.tolist()
+                    
+                    category_cols = st.columns(len(categories))
+                    for i, category in enumerate(categories):
+                        with category_cols[i]:
+                            cat_posts = trending_posts[trending_posts['Category'] == category]
+                            if not cat_posts.empty and len(cat_posts) >= 5:
+                                cat_captions = ' '.join(cat_posts[caption_col].dropna().astype(str))
+                                cat_cleaned = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', cat_captions.lower())
+                                cat_words = word_tokenize(cat_cleaned)
+                                cat_keywords = [word for word in cat_words if word.isalpha() and len(word) > 2 and word not in stop_words]
+                                cat_top = [word for word, _ in Counter(cat_keywords).most_common(4)]
+                                
+                                st.write(f"**{category.title()}:**")
+                                st.caption(", ".join(cat_top))
+            else:
+                st.info("No trending keywords found.")
+    else:
+        st.info("No caption data available for trending analysis.")
+        
+except Exception as e:
+    st.warning("Trending keywords analysis unavailable.")
 
 st.info("See logs/project.log for detailed logs and errors.")
