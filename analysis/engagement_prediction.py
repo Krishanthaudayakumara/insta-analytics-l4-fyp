@@ -14,15 +14,98 @@ class PostRecommendationModel:
     def recommend(self, features, user_df=None):
         import numpy as np
         import pandas as pd
+        from collections import Counter
         X_input = np.array([[features.get(f, 0) for f in self.feature_cols]])
         pred_engagement = self.model.predict(X_input)[0]
+        # Defaults
+        best_caption_length = features.get('caption_length', 15)
+        best_category = features.get('Category_encoded', 'N/A')
+        best_theme = 'N/A'
+        best_hashtags = []
+        best_sentiment = features.get('caption_sentiment', 'neutral')
+        best_engagement_rate = round(pred_engagement, 3)
+        debug_caption_lengths = []
+        # If user_df is provided, recommend based on user's top engagement posts
+        if user_df is not None and not user_df.empty:
+            if 'engagement_rate' in user_df.columns:
+                top_posts = user_df.sort_values(by='engagement_rate', ascending=False).head(5)
+                # Sentiment: most common among top posts
+                if 'caption_sentiment' in top_posts.columns:
+                    sentiments = top_posts['caption_sentiment'].dropna().astype(str).str.lower()
+                    if not sentiments.empty:
+                        best_sentiment = Counter(sentiments).most_common(1)[0][0]
+                # Caption length: average among top posts, skip zeros/empty
+                if 'caption_length' in top_posts.columns:
+                    lengths = top_posts['caption_length'].dropna().astype(float)
+                    lengths = lengths[lengths > 0]
+                    debug_caption_lengths = lengths.tolist()
+                    if not lengths.empty:
+                        best_caption_length = int(round(lengths.mean()))
+                # Fallback: if still zero, use user's overall average
+                if (not debug_caption_lengths or best_caption_length == 0) and 'caption_length' in user_df.columns:
+                    all_lengths = user_df['caption_length'].dropna().astype(float)
+                    all_lengths = all_lengths[all_lengths > 0]
+                    if not all_lengths.empty:
+                        best_caption_length = int(round(all_lengths.mean()))
+                # Category: most common among top posts
+                if 'Category' in top_posts.columns:
+                    cats = top_posts['Category'].dropna().astype(str)
+                    if not cats.empty:
+                        best_category = Counter(cats).most_common(1)[0][0]
+                # Theme: most common among top posts
+                if 'theme' in top_posts.columns:
+                    themes = top_posts['theme'].dropna().astype(str)
+                    if not themes.empty:
+                        best_theme = Counter(themes).most_common(1)[0][0]
+                # Hashtags: use hashtags_agg if present, else hashtags
+                hashtags_col = 'hashtags_agg' if 'hashtags_agg' in top_posts.columns else 'hashtags'
+                if hashtags_col in top_posts.columns:
+                    hashtags_series = top_posts[hashtags_col].dropna().astype(str)
+                    hashtags_flat = []
+                    for hstr in hashtags_series:
+                        hstr = hstr.strip()
+                        if not hstr or hstr.lower() in ('', 'nan', 'none', '[]'):
+                            continue
+                        # Support both comma and space delimiters
+                        if ',' in hstr:
+                            hashtags_flat.extend([t.strip() for t in hstr.split(',') if t.strip()])
+                        else:
+                            hashtags_flat.extend([t.strip() for t in hstr.split() if t.strip()])
+                    hashtags_flat = [h for h in hashtags_flat if h]
+                    if hashtags_flat:
+                        best_hashtags = [h for h, _ in Counter(hashtags_flat).most_common(3)]
+                # Fallback: if no hashtags found, use user's most common hashtags
+                if not best_hashtags and 'hashtags_agg' in user_df.columns:
+                    all_hashtags = sum([
+                        [t.strip() for t in (h.split(',') if ',' in h else h.split()) if t.strip()]
+                        for h in user_df['hashtags_agg'].dropna().astype(str)
+                        if h.strip() and h.lower() not in ('', 'nan', 'none', '[]')
+                    ], [])
+                    if all_hashtags:
+                        best_hashtags = [h for h, _ in Counter(all_hashtags).most_common(3)]
+                # Engagement rate: average among top posts
+                if 'engagement_rate' in top_posts.columns:
+                    rates = top_posts['engagement_rate'].dropna().astype(float)
+                    if not rates.empty:
+                        best_engagement_rate = round(rates.mean(), 3)
+        # If category is encoded, decode it
+        if best_category != 'N/A':
+            try:
+                le_path = 'outputs/model_post_recommendation_category_encoder.joblib'
+                import joblib
+                le = joblib.load(le_path)
+                if isinstance(best_category, (int, float, np.integer)):
+                    best_category = le.inverse_transform([int(best_category)])[0]
+            except Exception:
+                pass
+        
         rec = {
-            'caption_sentiment': features.get('caption_sentiment', 'positive'),
-            'caption_length': features.get('caption_length', 15),
-            'category': user_df['category'].iloc[0] if user_df is not None and 'category' in user_df else 'N/A',
-            'hashtags': user_df['hashtags'].iloc[0].split(',') if user_df is not None and 'hashtags' in user_df and not pd.isna(user_df['hashtags'].iloc[0]) else [],
-            'theme': user_df['theme'].iloc[0] if user_df is not None and 'theme' in user_df else 'N/A',
-            'expected_engagement_rate': round(pred_engagement, 3)
+            'caption_sentiment': best_sentiment,
+            'caption_length': best_caption_length,
+            'category': best_category,
+            'hashtags': best_hashtags,
+            'theme': best_theme,
+            'expected_engagement_rate': best_engagement_rate
         }
         return rec
 
@@ -134,21 +217,29 @@ def train_and_save_post_recommendation_model(df):
     """
     Train and save a personalized post recommendation model for suggesting optimal next post attributes.
     Saves model to outputs/model_post_recommendation.joblib and features to outputs/model_post_recommendation_features.joblib.
+    Now includes Category as a label-encoded feature.
     """
     import numpy as np
     import joblib
     from sklearn.ensemble import RandomForestRegressor
     from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import LabelEncoder
     # Define features and targets for recommendation
     feature_cols = [
         'caption_length', 'num_hashtags', 'engagement_rate',
         'caption_sentiment', 'caption_sentiment_vader',
         'hour_of_day', 'day_of_week', 'user_cluster_k', 'user_cluster_agglom',
         '#Followers', '#Followees', '#Posts',
-        # Add more if available
+        'Category'  # Add category as a feature
     ]
     # Only keep features present in df
     feature_cols = [col for col in feature_cols if col in df.columns]
+    # Encode Category if present
+    le = None
+    if 'Category' in feature_cols:
+        le = LabelEncoder()
+        df['Category_encoded'] = le.fit_transform(df['Category'].astype(str).fillna('unknown'))
+        feature_cols = [c if c != 'Category' else 'Category_encoded' for c in feature_cols]
     # Target: engagement_rate (or likes/comments if preferred)
     target_col = 'engagement_rate' if 'engagement_rate' in df.columns else (
         'likes' if 'likes' in df.columns else 'comments_count'
@@ -163,6 +254,9 @@ def train_and_save_post_recommendation_model(df):
     # Save model and features
     joblib.dump(model, 'outputs/model_post_recommendation.joblib')
     joblib.dump(feature_cols, 'outputs/model_post_recommendation_features.joblib')
+    # Save label encoder if used
+    if le is not None:
+        joblib.dump(le, 'outputs/model_post_recommendation_category_encoder.joblib')
     # Save wrapped model for UI
     wrapped_model = PostRecommendationModel(model, feature_cols)
     joblib.dump(wrapped_model, 'outputs/model_post_recommendation.joblib')

@@ -1,6 +1,13 @@
 import streamlit as st
 import pandas as pd
 import os
+import streamlit as st
+import pandas as pd
+import os
+import subprocess
+import joblib
+import numpy as np
+import re
 from analysis import sentiment_analysis, clustering_segmentation, engagement_prediction
 from recommendations import post_recommender
 from visualizations import engagement_trends
@@ -34,7 +41,7 @@ if data_file:
     st.success("Data loaded successfully!")
 else:
     # Try to load default data if exists
-    default_path = "data/final_with_all_outputs.csv"
+    default_path = "data/processed_data/cleaned_merged_user_post_data.csv"
     if os.path.exists(default_path):
         df = pd.read_csv(default_path)
         st.info("Loaded default data from data/processed_data/cleaned_merged_user_post_data.csv")
@@ -118,20 +125,52 @@ if len(df) > 5:
 
 # Collaborative filtering (by hashtags)
 st.subheader("Collaborative Filtering Recommendations (by hashtags)")
-if 'hashtags' in df.columns:
+# Check for hashtags_agg first, then hashtags
+hashtag_col = 'hashtags_agg' if 'hashtags_agg' in df.columns else 'hashtags'
+if hashtag_col in df.columns:
     try:
-        if df['hashtags'].dropna().astype(str).str.strip().replace('', float('nan')).dropna().empty:
+        # Only keep rows with non-empty, non-null hashtags
+        valid_hashtags = df[hashtag_col].dropna().astype(str).str.strip()
+        valid_hashtags = valid_hashtags[(valid_hashtags != '') & (valid_hashtags != 'nan')]
+        if valid_hashtags.empty:
             st.warning("No valid hashtags for collaborative filtering.")
         else:
-            df['hashtags_str'] = df['hashtags'].astype(str)
-            tfidf_hash = TfidfVectorizer(token_pattern=r'(?u)\\b\\w+\\b')
-            tfidf_matrix_hash = tfidf_hash.fit_transform(df['hashtags_str'])
-            sim_scores_hash = cosine_similarity(tfidf_matrix_hash[0:1], tfidf_matrix_hash).flatten()
-            similar_indices_hash = sim_scores_hash.argsort()[-6:][::-1][1:]
-            similar_posts_hash = df.iloc[similar_indices_hash][[post_id_col, caption_col, likes_col, comments_col]]
-            st.table(similar_posts_hash)
+            # For hashtags_agg (comma-separated) or single hashtags
+            def clean_hashtags(h):
+                if hashtag_col == 'hashtags_agg' and ',' in h:
+                    # hashtags_agg: comma-separated
+                    return ' '.join([tag.strip() for tag in h.split(',') if tag.strip()])
+                elif ' ' in h:
+                    # Space-separated hashtags
+                    return ' '.join([tag.strip() for tag in h.split() if tag.strip()])
+                else:
+                    # Single hashtag
+                    return h.strip()
+            
+            # Apply cleaning to valid hashtags only
+            df_filtered = df[df[hashtag_col].isin(valid_hashtags)].copy()
+            df_filtered['hashtags_str'] = df_filtered[hashtag_col].apply(clean_hashtags)
+            
+            # Remove empty strings after cleaning
+            df_filtered = df_filtered[df_filtered['hashtags_str'].str.strip() != '']
+            
+            if df_filtered.empty or df_filtered['hashtags_str'].str.strip().replace('', float('nan')).dropna().empty:
+                st.warning("No valid hashtags for collaborative filtering after cleaning.")
+            else:
+                # Use min_df=1 to avoid empty vocabulary
+                tfidf_hash = TfidfVectorizer(token_pattern=r'(?u)\\b\\w+\\b', min_df=1, max_df=0.95)
+                tfidf_matrix_hash = tfidf_hash.fit_transform(df_filtered['hashtags_str'])
+                if tfidf_matrix_hash.shape[0] > 1:
+                    sim_scores_hash = cosine_similarity(tfidf_matrix_hash[0:1], tfidf_matrix_hash).flatten()
+                    similar_indices_hash = sim_scores_hash.argsort()[-6:][::-1][1:]
+                    similar_posts_hash = df_filtered.iloc[similar_indices_hash][[post_id_col, caption_col, likes_col, comments_col]]
+                    st.table(similar_posts_hash)
+                else:
+                    st.warning("Not enough posts with hashtags for collaborative filtering.")
     except Exception as e:
         st.warning(f"Collaborative filtering failed: {e}")
+else:
+    st.warning("No hashtag columns found in the data.")
 
 # --- Download trained models section ---
 import streamlit as st
@@ -365,13 +404,268 @@ else:
                     rec_features[feat] = user_df[feat].iloc[0]
                 else:
                     rec_features[feat] = 0
+            # Handle category encoding for recommendation
+            category_encoder_path = 'outputs/model_post_recommendation_category_encoder.joblib'
+            if 'Category_encoded' in feature_cols and os.path.exists(category_encoder_path):
+                le = joblib.load(category_encoder_path)
+                if 'Category' in user_df and not user_df['Category'].dropna().empty:
+                    cat_val = user_df['Category'].iloc[0]
+                    rec_features['Category_encoded'] = le.transform([str(cat_val)])[0] if cat_val in le.classes_ else 0
+                else:
+                    rec_features['Category_encoded'] = 0
+            # --- Clean up debug output and refine recommendation display ---
             rec = rec_model.recommend(rec_features, user_df=user_df)
+            # Decode recommended category if possible
+            recommended_category = None
+            if 'Category_encoded' in feature_cols and os.path.exists(category_encoder_path):
+                le = joblib.load(category_encoder_path)
+                if isinstance(rec.get('category', None), (int, float)) and rec.get('category', None) != 'N/A':
+                    try:
+                        recommended_category = le.inverse_transform([int(rec['category'])])[0]
+                    except Exception:
+                        recommended_category = None
+                elif isinstance(rec.get('category', None), str) and rec.get('category', None) not in (None, '', 'N/A'):
+                    recommended_category = rec.get('category')
+            elif rec.get('category', None) not in (None, '', 'N/A'):
+                recommended_category = rec.get('category')
+
+            # Only show fields if a valid recommendation is available
             st.write("**Recommended Caption Sentiment:**", rec.get('caption_sentiment', 'N/A'))
             st.write("**Recommended Caption Length (words):**", rec.get('caption_length', 'N/A'))
-            st.write("**Recommended Post Category:**", rec.get('category', 'N/A'))
-            st.write("**Recommended Hashtags:**", ', '.join(rec.get('hashtags', [])))
-            st.write("**Recommended Content Theme:**", rec.get('theme', 'N/A'))
-            st.write("**Expected Engagement Rate:**", rec.get('expected_engagement_rate', 'N/A'))
+            if recommended_category:
+                st.write("**Recommended Post Category:**", recommended_category)
+            # Show hashtags or fallback to most common from user history
+            hashtags = rec.get('hashtags', [])
+            if hashtags:
+                st.write("**Recommended Hashtags:**", ', '.join(hashtags))
+            else:
+                # Fallback: suggest most common hashtags from user's history
+                if 'hashtags_agg' in user_df and not user_df['hashtags_agg'].dropna().empty:
+                    from collections import Counter
+                    all_hashtags = []
+                    for h in user_df['hashtags_agg'].dropna().astype(str):
+                        # Handle comma-separated hashtags in hashtags_agg
+                        if ',' in h:
+                            all_hashtags.extend([tag.strip() for tag in h.split(',') if tag.strip()])
+                        else:
+                            all_hashtags.extend([tag.strip() for tag in h.split() if tag.strip()])
+                    top_hashtags = [h for h, _ in Counter(all_hashtags).most_common(5)]
+                    if top_hashtags:
+                        st.write("**Suggested Hashtags (from history):**", ', '.join(top_hashtags))
+            if rec.get('theme', None) not in (None, '', 'N/A'):
+                st.write("**Recommended Content Theme:**", rec.get('theme'))
+            
+            # Add explanatory info box about engagement rate
+            with st.expander("ℹ️ What is Engagement Rate?", expanded=False):
+                st.markdown("""
+                **Engagement Rate** = (Total Engagements ÷ Total Followers) × 100
+                
+                - **Total Engagements** = Likes + Comments + Shares + Saves
+                - **Industry Benchmarks:**
+                  - 🔥 **Excellent**: 6%+ (top-tier influencers)
+                  - ✅ **Good**: 3-6% (above average performance)
+                  - 📊 **Average**: 1-3% (typical for most accounts)
+                  - 📉 **Below Average**: <1% (needs optimization)
+                
+                **Example**: If you have 10,000 followers and get 500 total engagements, your rate is 5% (good performance).
+                """)
+            
+            # Enhanced Engagement Rate Display with Context
+            engagement_rate = rec.get('expected_engagement_rate', 'N/A')
+            if engagement_rate != 'N/A':
+                engagement_percent = round(float(engagement_rate) * 100, 2)
+                st.write(f"**Expected Engagement Rate:** {engagement_percent}%")
+                
+                # Add context about what this means
+                if engagement_percent >= 6:
+                    st.success(f"🔥 Excellent engagement rate! ({engagement_percent}% is above 6% - top-tier performance)")
+                elif engagement_percent >= 3:
+                    st.info(f"✅ Good engagement rate! ({engagement_percent}% is above average - expect strong audience interaction)")
+                elif engagement_percent >= 1:
+                    st.warning(f"📊 Average engagement rate ({engagement_percent}% - typical for most accounts)")
+                else:
+                    st.error(f"📉 Below average engagement rate ({engagement_percent}% - consider optimizing content)")
+                
+                # Calculate expected interactions based on follower count
+                follower_count = user_df['#Followers'].iloc[0] if '#Followers' in user_df.columns and not user_df['#Followers'].empty else None
+                if follower_count and follower_count > 0:
+                    expected_engagements = int(follower_count * float(engagement_rate))
+                    st.write(f"**Expected Total Engagements:** ~{expected_engagements:,} interactions (likes + comments)")
+                    st.caption(f"Based on your {follower_count:,} followers × {engagement_percent}% engagement rate")
+            else:
+                st.write("**Expected Engagement Rate:**", engagement_rate)
+            
+            # Add Like Count Prediction
+            st.markdown("---")
+            st.subheader("📈 Predicted Performance Metrics")
+            
+            # Try to load like prediction models
+            like_models = {
+                'Linear Regression': 'outputs/model_linear_regression_likes.joblib',
+                'Random Forest': 'outputs/model_random_forest_likes.joblib',
+                'Ridge Regression': 'outputs/model_ridge_likes.joblib'
+            }
+            
+            like_features_path = 'outputs/model_features_likes.joblib'
+            
+            if os.path.exists(like_features_path):
+                like_feature_cols = joblib.load(like_features_path)
+                
+                # Prepare features for like prediction
+                like_features = {}
+                for feat in like_feature_cols:
+                    if feat == 'caption_sentiment':
+                        val = user_df[feat].iloc[0] if feat in user_df and not user_df[feat].dropna().empty else 0
+                        if isinstance(val, str):
+                            like_features[feat] = sentiment_map.get(val.lower(), 0)
+                        else:
+                            like_features[feat] = val
+                    elif feat in user_df and not user_df[feat].dropna().empty:
+                        like_features[feat] = user_df[feat].iloc[0]
+                    else:
+                        like_features[feat] = 0
+                
+                # Handle category encoding for likes
+                if 'Category_encoded' in like_feature_cols and os.path.exists(category_encoder_path):
+                    le = joblib.load(category_encoder_path)
+                    if 'Category' in user_df and not user_df['Category'].dropna().empty:
+                        cat_val = user_df['Category'].iloc[0]
+                        like_features['Category_encoded'] = le.transform([str(cat_val)])[0] if cat_val in le.classes_ else 0
+                    else:
+                        like_features['Category_encoded'] = 0
+                
+                # Predict likes with different models
+                like_predictions = {}
+                for model_name, model_path in like_models.items():
+                    if os.path.exists(model_path):
+                        try:
+                            like_model = joblib.load(model_path)
+                            X_input = np.array([[like_features.get(f, 0) for f in like_feature_cols]])
+                            pred_likes = max(0, int(like_model.predict(X_input)[0]))  # Ensure non-negative
+                            like_predictions[model_name] = pred_likes
+                        except Exception as e:
+                            st.warning(f"Could not load {model_name} likes model: {e}")
+                
+                if like_predictions:
+                    # Display predictions
+                    avg_likes = int(np.mean(list(like_predictions.values())))
+                    st.write(f"**Predicted Likes:** ~{avg_likes:,}")
+                    
+                    # Show range
+                    min_likes = min(like_predictions.values())
+                    max_likes = max(like_predictions.values())
+                    if min_likes != max_likes:
+                        st.caption(f"Model range: {min_likes:,} - {max_likes:,} likes")
+                    
+                    # Compare with user's average
+                    if 'likes' in user_df.columns:
+                        user_avg_likes = user_df['likes'].mean()
+                        if avg_likes > user_avg_likes:
+                            improvement = ((avg_likes - user_avg_likes) / user_avg_likes) * 100
+                            st.success(f"🚀 {improvement:.1f}% better than your average ({user_avg_likes:.0f} likes)")
+                        elif avg_likes < user_avg_likes * 0.9:
+                            st.info(f"📊 Below your average ({user_avg_likes:.0f} likes) - consider refining strategy")
+                    
+                    # Show individual model predictions in expander
+                    with st.expander("View detailed model predictions"):
+                        for model_name, pred in like_predictions.items():
+                            st.write(f"- {model_name}: {pred:,} likes")
+                else:
+                    st.info("Like prediction models not available")
+                    
+                # Add Comment Count Prediction
+                comment_models = {
+                    'Linear Regression': 'outputs/model_linear_regression_comments.joblib',
+                    'Random Forest': 'outputs/model_random_forest_comments.joblib',
+                    'Ridge Regression': 'outputs/model_ridge_comments.joblib'
+                }
+                
+                comment_features_path = 'outputs/model_features_comments.joblib'
+                
+                if os.path.exists(comment_features_path):
+                    comment_feature_cols = joblib.load(comment_features_path)
+                    
+                    # Prepare features for comment prediction
+                    comment_features = {}
+                    for feat in comment_feature_cols:
+                        if feat == 'caption_sentiment':
+                            val = user_df[feat].iloc[0] if feat in user_df and not user_df[feat].dropna().empty else 0
+                            if isinstance(val, str):
+                                comment_features[feat] = sentiment_map.get(val.lower(), 0)
+                            else:
+                                comment_features[feat] = val
+                        elif feat in user_df and not user_df[feat].dropna().empty:
+                            comment_features[feat] = user_df[feat].iloc[0]
+                        else:
+                            comment_features[feat] = 0
+                    
+                    # Handle category encoding for comments
+                    if 'Category_encoded' in comment_feature_cols and os.path.exists(category_encoder_path):
+                        le = joblib.load(category_encoder_path)
+                        if 'Category' in user_df and not user_df['Category'].dropna().empty:
+                            cat_val = user_df['Category'].iloc[0]
+                            comment_features['Category_encoded'] = le.transform([str(cat_val)])[0] if cat_val in le.classes_ else 0
+                        else:
+                            comment_features['Category_encoded'] = 0
+                    
+                    # Predict comments with different models
+                    comment_predictions = {}
+                    for model_name, model_path in comment_models.items():
+                        if os.path.exists(model_path):
+                            try:
+                                comment_model = joblib.load(model_path)
+                                X_input = np.array([[comment_features.get(f, 0) for f in comment_feature_cols]])
+                                pred_comments = max(0, int(comment_model.predict(X_input)[0]))  # Ensure non-negative
+                                comment_predictions[model_name] = pred_comments
+                            except Exception as e:
+                                st.warning(f"Could not load {model_name} comments model: {e}")
+                    
+                    if comment_predictions:
+                        # Display comment predictions
+                        avg_comments = int(np.mean(list(comment_predictions.values())))
+                        st.write(f"**Predicted Comments:** ~{avg_comments:,}")
+                        
+                        # Show range
+                        min_comments = min(comment_predictions.values())
+                        max_comments = max(comment_predictions.values())
+                        if min_comments != max_comments:
+                            st.caption(f"Model range: {min_comments:,} - {max_comments:,} comments")
+                        
+                        # Compare with user's average
+                        if 'comments_count' in user_df.columns:
+                            user_avg_comments = user_df['comments_count'].mean()
+                            if avg_comments > user_avg_comments:
+                                improvement = ((avg_comments - user_avg_comments) / user_avg_comments) * 100
+                                st.success(f"💬 {improvement:.1f}% more comments than your average ({user_avg_comments:.0f})")
+                            elif avg_comments < user_avg_comments * 0.9:
+                                st.info(f"💬 Below your average ({user_avg_comments:.0f} comments)")
+                        
+                        # Add comment predictions to detailed view
+                        with st.expander("View detailed comment predictions"):
+                            for model_name, pred in comment_predictions.items():
+                                st.write(f"- {model_name}: {pred:,} comments")
+                    
+                    # Calculate total predicted engagement
+                    if like_predictions and comment_predictions:
+                        total_predicted_engagement = avg_likes + avg_comments
+                        st.markdown("---")
+                        st.metric(
+                            label="**Total Predicted Engagement**",
+                            value=f"{total_predicted_engagement:,}",
+                            help="Combined likes + comments prediction"
+                        )
+                        
+                        # Calculate predicted engagement rate
+                        if follower_count and follower_count > 0:
+                            predicted_engagement_rate = (total_predicted_engagement / follower_count) * 100
+                            st.metric(
+                                label="**Predicted Engagement Rate**",
+                                value=f"{predicted_engagement_rate:.2f}%",
+                                delta=f"{abs(predicted_engagement_rate - engagement_percent):.2f}% vs expected",
+                                help="Based on likes + comments predictions"
+                            )
+            else:
+                st.info("Like prediction features not found. Train models first to get like predictions.")
         else:
             st.info("Personalized post recommendation model not found. Please train it from the sidebar.")
         # 4. Personalized Recommendations for High-Value Followers
