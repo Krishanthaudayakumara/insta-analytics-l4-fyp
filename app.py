@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import streamlit as st
-import pandas as pd
-import os
 import subprocess
 import joblib
 import numpy as np
@@ -12,8 +9,45 @@ from analysis import sentiment_analysis, clustering_segmentation, engagement_pre
 from recommendations import post_recommender
 from visualizations import engagement_trends
 
-st.set_page_config(page_title="Instagram User Behavior Analysis", layout="wide")
-st.title("Instagram User Behavior Analysis Dashboard")
+# Import advanced ML components
+try:
+    from ui.advanced_components import AdvancedMLIntegration, AdvancedMLComponents
+    ADVANCED_ML_AVAILABLE = True
+except ImportError:
+    ADVANCED_ML_AVAILABLE = False
+    st.warning("⚠️ Advanced ML components not available. Install required packages for full functionality.")
+
+st.set_page_config(
+    page_title="Instagram User Behavior Analysis", 
+    layout="wide",
+    page_icon="📊"
+)
+
+# Custom CSS for better styling
+st.markdown("""
+<style>
+.main-header {
+    font-size: 2.5rem;
+    color: #E91E63;
+    text-align: center;
+    margin-bottom: 1rem;
+    background: linear-gradient(45deg, #E91E63, #9C27B0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: bold;
+}
+.section-header {
+    font-size: 1.8rem;
+    color: #1976D2;
+    margin: 1rem 0;
+    border-left: 4px solid #2196F3;
+    padding-left: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<h1 class="main-header">📊 Instagram User Behavior Analysis Dashboard</h1>', 
+           unsafe_allow_html=True)
 
 # Add a reload button at the top of the app
 if st.button("Reload App"):
@@ -24,6 +58,12 @@ st.sidebar.header("Data Selection & Actions")
 data_file = st.sidebar.file_uploader("Upload cleaned_merged_user_post_data.csv", type=["csv"])
 preprocess_data = st.sidebar.button("Preprocess Raw Data (Full Pipeline)")
 run_analysis = st.sidebar.button("Run Analysis Pipeline")
+
+# Advanced ML Integration
+advanced_features = []
+if ADVANCED_ML_AVAILABLE:
+    advanced_ml = AdvancedMLIntegration()
+    advanced_features = advanced_ml.add_advanced_sidebar()
 
 # Data Preprocessing Pipeline
 if preprocess_data:
@@ -79,6 +119,51 @@ if run_analysis:
         mime="text/csv"
     )
 
+# Advanced ML Analysis Section
+if ADVANCED_ML_AVAILABLE and advanced_features:
+    st.markdown('<h2 class="section-header">🧠 Advanced Machine Learning Analysis</h2>', 
+               unsafe_allow_html=True)
+    
+    try:
+        # Run advanced ML analysis
+        advanced_results = advanced_ml.integrate_with_existing_analysis(df, advanced_features)
+        
+        # Store results in session state for persistence
+        if advanced_results:
+            st.session_state.advanced_results = advanced_results
+            
+    except Exception as e:
+        st.error(f"❌ Advanced ML analysis failed: {str(e)}")
+        st.info("💡 This might be due to missing dependencies or incompatible data format.")
+
+# Display Advanced ML Results if available
+if 'advanced_results' in st.session_state:
+    st.markdown("### 🎯 Advanced Analysis Summary")
+    
+    advanced_results = st.session_state.advanced_results
+    
+    # Create summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if 'boosting' in advanced_results:
+            best_accuracy = advanced_results['boosting'].get('metrics', {}).get('accuracy', 0)
+            st.metric("Best Model Accuracy", f"{best_accuracy:.3f}")
+    
+    with col2:
+        if 'nlp' in advanced_results:
+            avg_sentiment = advanced_results['nlp'].get('sentiment_score', 0)
+            st.metric("Average Sentiment", f"{avg_sentiment:.2f}")
+    
+    with col3:
+        if 'gnn' in advanced_results:
+            communities = advanced_results['gnn'].get('communities_detected', 0)
+            st.metric("Communities Found", communities)
+    
+    with col4:
+        if 'multimodal' in advanced_results:
+            quality_score = advanced_results['multimodal'].get('content_quality', 0)
+            st.metric("Content Quality", f"{quality_score}/10")
 # Show data preview
 st.subheader("Data Preview")
 st.dataframe(df.head(50))
