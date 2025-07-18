@@ -11,12 +11,14 @@ import plotly.graph_objects as go
 from datetime import datetime
 import os
 import sys
+import json
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import modules
 from preprocessing.data_processor import DataProcessor
+from preprocessing.clustered_data_processor import ClusteredDataProcessor
 from follower_selection.high_value_selector import HighValueFollowerSelector
 from sentiment_analysis.bert_analyzer import BERTSentimentAnalyzer
 from models.model_trainer import ModelTrainer
@@ -66,6 +68,7 @@ st.markdown("""
 class InstagramEngagementApp:
     def __init__(self):
         self.data_processor = DataProcessor()
+        self.clustered_data_processor = ClusteredDataProcessor()
         self.follower_selector = HighValueFollowerSelector()
         self.sentiment_analyzer = BERTSentimentAnalyzer()
         self.model_trainer = ModelTrainer()
@@ -203,101 +206,136 @@ class InstagramEngagementApp:
                 x=1, y=y,
                 text=step,
                 showarrow=False,
-                font=dict(size=10)
+                font=dict(size=12, color="black")
             )
-            
             if i < len(steps) - 1:
                 fig.add_annotation(
                     x=1, y=y-0.5,
-                    text="↓",
-                    showarrow=False,
-                    font=dict(size=20, color="blue")
+                    ax=1, ay=y-0.7,
+                    xref="x", yref="y",
+                    axref="x", ayref="y",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1.5,
+                    arrowwidth=2,
+                    arrowcolor="black"
                 )
         
         fig.update_layout(
-            title="System Architecture Flow",
-            xaxis=dict(range=[-0.5, 2.5], showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(range=[-0.5, 7.5], showgrid=False, zeroline=False, showticklabels=False),
-            height=600,
-            showlegend=False
+            showlegend=False,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(l=0, r=0, t=0, b=0),
+            height=600
         )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
+        st.plotly_chart(fig, use_container_width=True, key="architecture_diagram")
+
     def show_preprocessing(self):
-        """Data preprocessing interface"""
+        """Show data preprocessing options"""
         st.markdown("### 📊 Data Preprocessing")
         
-        # File upload
-        uploaded_file = st.file_uploader(
-            "Upload Instagram Dataset (CSV)", 
-            type=['csv'],
-            help="Upload your Instagram dataset with required fields"
+        data_source = st.radio(
+            "Select Data Source",
+            ("Upload CSV", "Process Clustered Data")
         )
+
+        if data_source == "Upload CSV":
+            self.handle_csv_upload()
+        else:
+            self.handle_clustered_data()
+
+    def handle_csv_upload(self):
+        """Handle CSV upload and processing"""
+        st.markdown("#### Upload Raw Instagram Data")
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
         
-        if uploaded_file is not None:
-            # Preview data
-            df = pd.read_csv(uploaded_file)
-            st.success(f"✅ Dataset loaded successfully! Shape: {df.shape}")
-            
-            with st.expander("📊 Data Preview"):
-                st.dataframe(df.head())
-            
-            with st.expander("📋 Data Info"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write("**Columns:**")
-                    st.write(list(df.columns))
-                with col2:
-                    st.write("**Missing Values:**")
-                    st.write(df.isnull().sum())
-            
-            # Preprocessing options
-            st.markdown("#### 🔧 Preprocessing Options")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                handle_missing = st.selectbox(
-                    "Handle Missing Values:",
-                    ["Drop rows", "Impute median", "Impute mean"]
-                )
-            with col2:
-                normalize_features = st.checkbox("Normalize numerical features", value=True)
-            
-            # Process button
-            if st.button("🚀 Process Data", type="primary"):
-                with st.spinner("Processing data..."):
-                    try:
-                        processed_data = self.data_processor.process_data(
-                            df, 
-                            handle_missing=handle_missing,
-                            normalize=normalize_features
-                        )
+        if uploaded_file:
+            try:
+                raw_df = pd.read_csv(uploaded_file)
+                st.success("✅ File uploaded successfully!")
+                
+                st.markdown("#### Raw Data Preview")
+                st.dataframe(raw_df.head())
+                
+                if st.button("🚀 Preprocess Data", type="primary"):
+                    with st.spinner("⚙️ Processing data... This may take a moment."):
+                        self.data_processor.fit(raw_df)
+                        processed_df = self.data_processor.transform()
                         
                         # Save processed data
-                        processed_data.to_csv("outputs/preprocessed_data.csv", index=False)
+                        processed_df.to_csv("outputs/preprocessed_data.csv", index=False)
                         
-                        st.success("✅ Data preprocessing completed!")
-                        st.info(f"📊 Processed shape: {processed_data.shape}")
+                        st.success("✅ Data preprocessing complete!")
+                        st.markdown("#### Processed Data Preview")
+                        st.dataframe(processed_df.head())
                         
-                        with st.expander("📊 Processed Data Preview"):
-                            st.dataframe(processed_data.head())
-                            
-                    except Exception as e:
-                        st.error(f"❌ Error during preprocessing: {str(e)}")
+            except Exception as e:
+                st.error(f"❌ An error occurred: {e}")
+
+    def handle_clustered_data(self):
+        """Handle clustered data processing"""
+        st.markdown("#### Process Clustered Instagram Data")
         
-        else:
-            st.info("📁 Please upload a CSV file to begin preprocessing")
+        cluster_names = self.clustered_data_processor.get_cluster_names()
+        if not cluster_names:
+            st.warning("⚠️ No cluster directories found in `data/clustered_data`.")
+            return
+
+        selected_cluster = st.selectbox("Select a cluster to process", cluster_names)
+        
+        if st.button("⚙️ Process Cluster", type="primary"):
+            with st.spinner(f"Processing {selected_cluster}... This might take a while."):
+                try:
+                    # Process the cluster data
+                    raw_df = self.clustered_data_processor.process_cluster(selected_cluster)
+                    
+                    if raw_df.empty:
+                        st.error(f"❌ No data found in cluster '{selected_cluster}'. Check the data format.")
+                        return
+                    
+                    # Make it compatible with existing pipeline
+                    processed_df = self.clustered_data_processor.create_compatible_dataframe(raw_df)
+                    
+                    # Store in session state
+                    st.session_state['clustered_df'] = processed_df
+                    st.session_state['selected_cluster'] = selected_cluster
+                    
+                    st.success(f"✅ Cluster '{selected_cluster}' processed successfully!")
+                    st.markdown("#### Processed Cluster Data Preview")
+                    st.dataframe(processed_df.head())
+                    
+                    # Show data statistics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Posts", len(processed_df))
+                    with col2:
+                        st.metric("Unique Users", processed_df['username'].nunique())
+                    with col3:
+                        st.metric("Total Comments", processed_df['comment_text'].notna().sum())
+                        
+                except Exception as e:
+                    st.error(f"❌ Error processing cluster: {str(e)}")
+                    st.info("This might be due to data format issues. Please check the .info files structure.")
+
+        if 'clustered_df' in st.session_state:
+            col1, col2 = st.columns(2)
             
-            # Sample data option
-            if st.button("🎲 Use Sample Data"):
-                sample_data = self.generate_sample_data()
-                sample_data.to_csv("outputs/preprocessed_data.csv", index=False)
-                st.success("✅ Sample data generated and saved!")
-                st.dataframe(sample_data.head())
-    
+            with col1:
+                if st.button("💾 Generate and Save Intermediate CSV"):
+                    output_path = f"outputs/{st.session_state['selected_cluster']}_preprocessed.csv"
+                    st.session_state['clustered_df'].to_csv(output_path, index=False)
+                    st.success(f"✅ Intermediate CSV saved to `{output_path}`")
+                    st.info("You can now use the 'Upload CSV' option with this generated file.")
+            
+            with col2:
+                if st.button("🚀 Continue with This Data"):
+                    # Save as the main preprocessed data for the pipeline
+                    st.session_state['clustered_df'].to_csv("outputs/preprocessed_data.csv", index=False)
+                    st.success("✅ Data set as main dataset for the pipeline!")
+                    st.info("You can now proceed to the next steps in the pipeline.")
+
     def show_follower_selection(self):
-        """High-value follower selection interface"""
+        """Show high-value follower selection"""
         st.markdown("### 👑 High-Value Follower Selection")
         
         # Check if preprocessed data exists
@@ -335,7 +373,6 @@ class InstagramEngagementApp:
                     )
                     
                     # Save results
-                    import json
                     with open("outputs/high_value_followers.json", "w") as f:
                         json.dump(high_value_followers, f)
                     
@@ -405,14 +442,12 @@ class InstagramEngagementApp:
                     )
                     
                     # Save results
-                    import json
                     with open("outputs/sentiment_scores.json", "w") as f:
                         json.dump(sentiment_scores, f)
-                    
                     st.success("✅ Sentiment analysis completed!")
                     
                     # Show results
-                    self.show_sentiment_results(sentiment_scores)
+                    self.show_sentiment_results(sentiment_scores, context="new")
                     
                 except Exception as e:
                     st.error(f"❌ Error during sentiment analysis: {str(e)}")
@@ -423,12 +458,19 @@ class InstagramEngagementApp:
                 existing_scores = json.load(f)
             
             st.info(f"📊 Previously analyzed: {len(existing_scores)} comments")
-            self.show_sentiment_results(existing_scores)
-    
-    def show_sentiment_results(self, sentiment_scores):
+            self.show_sentiment_results(existing_scores, context="existing")
+
+    def show_sentiment_results(self, sentiment_scores, context="default"):
         """Display sentiment analysis results"""
         if not sentiment_scores:
             return
+        
+        # Add high-precision timestamp and random component to ensure unique keys
+        import time
+        import random
+        timestamp = str(time.time()).replace('.', '')  # High precision timestamp
+        random_id = random.randint(1000, 9999)
+        key_suffix = f"{context}_{timestamp}_{random_id}"
         
         # Convert to DataFrame for visualization
         sentiment_df = pd.DataFrame([
@@ -445,7 +487,7 @@ class InstagramEngagementApp:
                 names=sentiment_counts.index,
                 title="Sentiment Distribution"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"sentiment_distribution_pie_{key_suffix}")
         
         with col2:
             # Confidence scores
@@ -455,7 +497,7 @@ class InstagramEngagementApp:
                 title="Confidence Score Distribution",
                 nbins=20
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"sentiment_confidence_histogram_{key_suffix}")
         
         # Sample results
         with st.expander("📊 Sample Results"):
@@ -569,7 +611,7 @@ class InstagramEngagementApp:
                     y=list(training_times.values()),
                     title="Training Time Comparison (seconds)"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="training_time_comparison")
     
     def show_model_evaluation(self):
         """Model evaluation interface"""
@@ -603,7 +645,6 @@ class InstagramEngagementApp:
                     )
                     
                     # Save results
-                    import json
                     with open("outputs/metrics.json", "w") as f:
                         json.dump(evaluation_results, f)
                     
@@ -643,7 +684,7 @@ class InstagramEngagementApp:
                 title="Model Performance Comparison",
                 barmode='group'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="model_performance_comparison")
         
         with col2:
             # Detailed metrics table
@@ -694,7 +735,6 @@ class InstagramEngagementApp:
                     )
                     
                     # Save results
-                    import json
                     with open("outputs/profiles.json", "w") as f:
                         json.dump(profiles, f)
                     
@@ -755,7 +795,7 @@ class InstagramEngagementApp:
                         names=pref_counts.index,
                         title="Content Preference Distribution"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key="content_preference_distribution")
         
         # Guidelines
         if guidelines:
@@ -820,7 +860,7 @@ class InstagramEngagementApp:
                 theta='index',
                 title="Model Performance Radar Chart"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="model_performance_radar")
             
             # Confusion matrices (if available)
             st.markdown("#### 🔄 Model Comparison")
@@ -834,7 +874,7 @@ class InstagramEngagementApp:
                     y='Accuracy',
                     title="Model Accuracy Comparison"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="model_accuracy_comparison")
             
             with col2:
                 # F1-Score comparison
@@ -844,7 +884,7 @@ class InstagramEngagementApp:
                     y='F1-Score',
                     title="Model F1-Score Comparison"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="model_f1_comparison")
                 
         except Exception as e:
             st.error(f"Error loading model metrics: {str(e)}")
@@ -876,7 +916,7 @@ class InstagramEngagementApp:
                     title="Engagement Probability Distribution by Sentiment",
                     nbins=20
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="engagement_prob_distribution")
                 
                 # Top users by engagement
                 top_users = df.nlargest(10, 'engagement_prob')
@@ -887,7 +927,7 @@ class InstagramEngagementApp:
                     color='sentiment',
                     title="Top 10 Users by Engagement Probability"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="top_users_engagement")
                 
         except Exception as e:
             st.error(f"Error loading profiles: {str(e)}")
@@ -913,7 +953,7 @@ class InstagramEngagementApp:
                     names=sentiment_counts.index,
                     title="Overall Sentiment Distribution"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="viz_sentiment_distribution")
             
             with col2:
                 # Confidence vs Sentiment
@@ -923,7 +963,7 @@ class InstagramEngagementApp:
                     y='confidence',
                     title="Confidence Scores by Sentiment"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="viz_sentiment_confidence")
                 
         except Exception as e:
             st.error(f"Error loading sentiment data: {str(e)}")
@@ -956,7 +996,7 @@ class InstagramEngagementApp:
                     hover_data=['username'],
                     title="High-Value Followers: Engagement vs Influence"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="engagement_vs_influence_scatter")
                 
                 # Top followers
                 top_followers = df.nlargest(10, 'total_score')
@@ -967,7 +1007,7 @@ class InstagramEngagementApp:
                     title="Top 10 High-Value Followers"
                 )
                 fig.update_xaxes(tickangle=45)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="top_followers_bar")
                 
         except Exception as e:
             st.error(f"Error loading follower data: {str(e)}")
@@ -999,7 +1039,7 @@ class InstagramEngagementApp:
                     y=content_counts.values,
                     title="Content Type Preferences Distribution"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="content_type_distribution")
                 
                 # Engagement by content type
                 avg_engagement = df.groupby('content_type')['engagement_prob'].mean().sort_values(ascending=False)
@@ -1008,7 +1048,7 @@ class InstagramEngagementApp:
                     y=avg_engagement.values,
                     title="Average Engagement Probability by Content Type"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="engagement_by_content_type")
                 
         except Exception as e:
             st.error(f"Error loading content preferences: {str(e)}")
