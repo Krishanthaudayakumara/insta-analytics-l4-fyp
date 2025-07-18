@@ -651,7 +651,7 @@ class InstagramEngagementApp:
                     st.success("✅ Model evaluation completed!")
                     
                     # Show evaluation results
-                    self.show_evaluation_results(evaluation_results)
+                    self.show_evaluation_results(evaluation_results, "new")
                     
                 except Exception as e:
                     st.error(f"❌ Error during evaluation: {str(e)}")
@@ -662,9 +662,9 @@ class InstagramEngagementApp:
                 existing_results = json.load(f)
             
             st.info("📊 Previous evaluation results:")
-            self.show_evaluation_results(existing_results)
+            self.show_evaluation_results(existing_results, "previous")
     
-    def show_evaluation_results(self, results):
+    def show_evaluation_results(self, results, context="default"):
         """Display evaluation results"""
         if not results:
             return
@@ -684,7 +684,8 @@ class InstagramEngagementApp:
                 title="Model Performance Comparison",
                 barmode='group'
             )
-            st.plotly_chart(fig, use_container_width=True, key="model_performance_comparison")
+            unique_key = f"evaluation_performance_comparison_{context}"
+            st.plotly_chart(fig, use_container_width=True, key=unique_key)
         
         with col2:
             # Detailed metrics table
@@ -746,7 +747,7 @@ class InstagramEngagementApp:
                     st.success(f"✅ Generated {len(profiles)} user profiles!")
                     
                     # Show profile results
-                    self.show_profile_results(profiles, guidelines)
+                    self.show_profile_results(profiles, guidelines, "new")
                     
                 except Exception as e:
                     st.error(f"❌ Error during profile generation: {str(e)}")
@@ -759,12 +760,15 @@ class InstagramEngagementApp:
                 existing_guidelines = json.load(f)
             
             st.info(f"📊 Previously generated: {len(existing_profiles)} profiles")
-            self.show_profile_results(existing_profiles, existing_guidelines)
+            self.show_profile_results(existing_profiles, existing_guidelines, "previous")
     
-    def show_profile_results(self, profiles, guidelines):
+    def show_profile_results(self, profiles, guidelines, context="default"):
         """Display profile generation results"""
         if not profiles:
             return
+        
+        # Create unique key based on context
+        unique_key = f"content_preference_distribution_{context}"
         
         # Profile summary
         col1, col2 = st.columns(2)
@@ -795,7 +799,7 @@ class InstagramEngagementApp:
                         names=pref_counts.index,
                         title="Content Preference Distribution"
                     )
-                    st.plotly_chart(fig, use_container_width=True, key="content_preference_distribution")
+                    st.plotly_chart(fig, use_container_width=True, key=unique_key)
         
         # Guidelines
         if guidelines:
@@ -850,17 +854,52 @@ class InstagramEngagementApp:
             with open("outputs/metrics.json", "r") as f:
                 metrics = json.load(f)
             
+            if not metrics:
+                st.warning("⚠️ No model metrics found.")
+                return
+            
             # Performance comparison
             metrics_df = pd.DataFrame(metrics).T
             
-            # Multiple metrics comparison
-            fig = px.radar(
-                metrics_df.reset_index(),
-                r='F1-Score',
-                theta='index',
-                title="Model Performance Radar Chart"
-            )
-            st.plotly_chart(fig, use_container_width=True, key="model_performance_radar")
+            if len(metrics_df) == 0:
+                st.warning("⚠️ No model performance data to visualize.")
+                return
+            
+            # Multiple metrics comparison using radar chart with go.Scatterpolar
+            if len(metrics_df) > 0:
+                fig = go.Figure()
+                
+                # Create radar chart manually using scatterpolar
+                metrics_to_plot = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'ROC-AUC']
+                available_metrics = [m for m in metrics_to_plot if m in metrics_df.columns]
+                
+                if available_metrics:
+                    for model_name in metrics_df.index:
+                        values = [metrics_df.loc[model_name, metric] if metric in metrics_df.columns else 0 
+                                 for metric in available_metrics]
+                        # Close the radar chart by repeating first value
+                        values.append(values[0])
+                        metrics_labels = available_metrics + [available_metrics[0]]
+                        
+                        fig.add_trace(go.Scatterpolar(
+                            r=values,
+                            theta=metrics_labels,
+                            fill='toself',
+                            name=model_name
+                        ))
+                    
+                    fig.update_layout(
+                        polar=dict(
+                            radialaxis=dict(
+                                visible=True,
+                                range=[0, 1]
+                            )),
+                        showlegend=True,
+                        title="Model Performance Radar Chart"
+                    )
+                    st.plotly_chart(fig, use_container_width=True, key="model_performance_radar")
+                else:
+                    st.warning("⚠️ No performance metrics available for radar chart.")
             
             # Confusion matrices (if available)
             st.markdown("#### 🔄 Model Comparison")
@@ -868,23 +907,29 @@ class InstagramEngagementApp:
             col1, col2 = st.columns(2)
             with col1:
                 # Accuracy comparison
-                fig = px.bar(
-                    metrics_df.reset_index(),
-                    x='index',
-                    y='Accuracy',
-                    title="Model Accuracy Comparison"
-                )
-                st.plotly_chart(fig, use_container_width=True, key="model_accuracy_comparison")
+                if 'Accuracy' in metrics_df.columns:
+                    fig = px.bar(
+                        metrics_df.reset_index(),
+                        x='index',
+                        y='Accuracy',
+                        title="Model Accuracy Comparison"
+                    )
+                    st.plotly_chart(fig, use_container_width=True, key="model_accuracy_comparison")
+                else:
+                    st.info("Accuracy metrics not available")
             
             with col2:
                 # F1-Score comparison
-                fig = px.bar(
-                    metrics_df.reset_index(),
-                    x='index',
-                    y='F1-Score',
-                    title="Model F1-Score Comparison"
-                )
-                st.plotly_chart(fig, use_container_width=True, key="model_f1_comparison")
+                if 'F1-Score' in metrics_df.columns:
+                    fig = px.bar(
+                        metrics_df.reset_index(),
+                        x='index',
+                        y='F1-Score',
+                        title="Model F1-Score Comparison"
+                    )
+                    st.plotly_chart(fig, use_container_width=True, key="model_f1_comparison")
+                else:
+                    st.info("F1-Score metrics not available")
                 
         except Exception as e:
             st.error(f"Error loading model metrics: {str(e)}")
@@ -894,6 +939,10 @@ class InstagramEngagementApp:
         try:
             with open("outputs/profiles.json", "r") as f:
                 profiles = json.load(f)
+            
+            if not profiles:
+                st.warning("⚠️ No engagement profiles found.")
+                return
             
             # Extract engagement probabilities
             engagement_data = []
@@ -928,6 +977,8 @@ class InstagramEngagementApp:
                     title="Top 10 Users by Engagement Probability"
                 )
                 st.plotly_chart(fig, use_container_width=True, key="top_users_engagement")
+            else:
+                st.warning("⚠️ No engagement probability data found in profiles.")
                 
         except Exception as e:
             st.error(f"Error loading profiles: {str(e)}")
@@ -938,10 +989,18 @@ class InstagramEngagementApp:
             with open("outputs/sentiment_scores.json", "r") as f:
                 sentiment_data = json.load(f)
             
+            if not sentiment_data:
+                st.warning("⚠️ No sentiment analysis data found.")
+                return
+            
             # Convert to DataFrame
             sentiment_df = pd.DataFrame([
                 {"comment": k, **v} for k, v in sentiment_data.items()
             ])
+            
+            if len(sentiment_df) == 0:
+                st.warning("⚠️ No sentiment data to visualize.")
+                return
             
             col1, col2 = st.columns(2)
             
@@ -973,6 +1032,10 @@ class InstagramEngagementApp:
         try:
             with open("outputs/high_value_followers.json", "r") as f:
                 followers = json.load(f)
+            
+            if not followers:
+                st.warning("⚠️ No high-value followers found.")
+                return
             
             # Follower metrics
             follower_data = []
@@ -1008,6 +1071,8 @@ class InstagramEngagementApp:
                 )
                 fig.update_xaxes(tickangle=45)
                 st.plotly_chart(fig, use_container_width=True, key="top_followers_bar")
+            else:
+                st.warning("⚠️ No follower data found to visualize.")
                 
         except Exception as e:
             st.error(f"Error loading follower data: {str(e)}")
@@ -1017,6 +1082,10 @@ class InstagramEngagementApp:
         try:
             with open("outputs/profiles.json", "r") as f:
                 profiles = json.load(f)
+            
+            if not profiles:
+                st.warning("⚠️ No user profiles found.")
+                return
             
             # Extract content preferences
             content_data = []
@@ -1049,6 +1118,8 @@ class InstagramEngagementApp:
                     title="Average Engagement Probability by Content Type"
                 )
                 st.plotly_chart(fig, use_container_width=True, key="engagement_by_content_type")
+            else:
+                st.warning("⚠️ No content preference data found in profiles.")
                 
         except Exception as e:
             st.error(f"Error loading content preferences: {str(e)}")

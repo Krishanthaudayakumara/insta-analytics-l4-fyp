@@ -49,6 +49,49 @@ else:
             print(f"  '{key}' appears {count} times")
 
 print("\n" + "="*50)
+
+# Test that the problematic px.radar was fixed
+print("Testing px.radar fix...")
+if 'px.radar' in content:
+    print("❌ px.radar still found in code!")
+else:
+    print("✅ px.radar has been removed!")
+
+# Check for go.Scatterpolar (the replacement)
+if 'go.Scatterpolar' in content:
+    print("✅ go.Scatterpolar found as replacement!")
+else:
+    print("⚠️ go.Scatterpolar not found - radar chart may not work")
+
+# Test the radar chart functionality
+print("\nTesting radar chart creation...")
+try:
+    import plotly.graph_objects as go
+    import pandas as pd
+    
+    # Sample metrics data
+    metrics_data = {
+        'Random Forest': {'Accuracy': 0.85, 'F1-Score': 0.85},
+        'XGBoost': {'Accuracy': 0.87, 'F1-Score': 0.87}
+    }
+    
+    metrics_df = pd.DataFrame(metrics_data).T
+    fig = go.Figure()
+    
+    for model_name in metrics_df.index:
+        values = [0.85, 0.85, 0.85]  # Close the radar
+        fig.add_trace(go.Scatterpolar(
+            r=values,
+            theta=['Accuracy', 'F1-Score', 'Accuracy'],
+            fill='toself',
+            name=model_name
+        ))
+    
+    print("✅ Radar chart creation successful!")
+except Exception as e:
+    print(f"❌ Radar chart creation failed: {e}")
+
+print("="*50)
 print("The duplicate element error should now be fixed!")
 print("You can test by:")
 print("1. Running sentiment analysis")

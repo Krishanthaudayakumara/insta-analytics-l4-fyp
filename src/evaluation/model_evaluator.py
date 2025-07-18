@@ -91,9 +91,18 @@ class ModelEvaluator:
         with open("outputs/high_value_followers.json", "r") as f:
             high_value_followers = json.load(f)
         
-        # Load sentiment scores
-        with open("outputs/sentiment_scores.json", "r") as f:
-            sentiment_scores = json.load(f)
+        # Load sentiment scores (handle empty file)
+        try:
+            with open("outputs/sentiment_scores.json", "r") as f:
+                content = f.read().strip()
+                if content:
+                    sentiment_scores = json.loads(content)
+                else:
+                    sentiment_scores = {}
+                    self.logger.warning("Sentiment scores file is empty, using default sentiment values")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self.logger.warning(f"Could not load sentiment scores: {e}, using default sentiment values")
+            sentiment_scores = {}
         
         # Filter for high-value followers
         high_value_usernames = set(high_value_followers.keys())
@@ -101,6 +110,30 @@ class ModelEvaluator:
         
         # Add sentiment features
         df_filtered = self._add_sentiment_features(df_filtered, sentiment_scores)
+        
+        # Encode categorical variables exactly like in training
+        # Check if we have proper dummy-encoded media columns (not including the original media_type column)
+        existing_media_dummy_cols = [col for col in df_filtered.columns if col.startswith('media_') and col != 'media_type']
+        
+        if 'media_type' in df_filtered.columns and len(existing_media_dummy_cols) == 0:
+            # Only create dummy encoding if proper dummy columns don't exist
+            media_dummies = pd.get_dummies(df_filtered['media_type'], prefix='media')
+            df_filtered = pd.concat([df_filtered, media_dummies], axis=1)
+            self.logger.info(f"Created media type dummy encoding: {list(media_dummies.columns)}")
+        elif len(existing_media_dummy_cols) > 0:
+            # If proper dummy encoding already exists, just log it
+            self.logger.info(f"Using existing media type dummy encoding: {existing_media_dummy_cols}")
+        
+        # Handle category encoding (may already be dummy-encoded)
+        if 'Category' in df_filtered.columns and not any(col.startswith('category_') for col in df_filtered.columns):
+            # Only create dummy encoding if it doesn't already exist
+            category_dummies = pd.get_dummies(df_filtered['Category'], prefix='category')
+            df_filtered = pd.concat([df_filtered, category_dummies], axis=1)
+            self.logger.info(f"Created category dummy encoding: {list(category_dummies.columns)}")
+        elif any(col.startswith('category_') for col in df_filtered.columns):
+            # If dummy encoding already exists, just log it
+            existing_category_cols = [col for col in df_filtered.columns if col.startswith('category_')]
+            self.logger.info(f"Using existing category dummy encoding: {existing_category_cols}")
         
         # Select features (same as in training)
         feature_columns = [
@@ -110,8 +143,8 @@ class ModelEvaluator:
             'sentiment_positive', 'sentiment_negative', 'sentiment_neutral'
         ]
         
-        # Add dummy encoded features
-        dummy_columns = [col for col in df_filtered.columns if col.startswith(('media_', 'category_'))]
+        # Add dummy encoded features (excluding original categorical columns)
+        dummy_columns = [col for col in df_filtered.columns if col.startswith(('media_', 'category_')) and col not in ['media_type', 'Category']]
         feature_columns.extend(dummy_columns)
         
         # Keep only existing columns
@@ -119,9 +152,22 @@ class ModelEvaluator:
         
         X = df_filtered[feature_columns].fillna(0)
         
-        # Target variable
-        y = df_filtered['engagement_probability'].fillna(0)
-        y = (y > y.median()).astype(int)  # Convert to binary
+        # Target variable - same logic as trainer
+        if 'engagement_probability' in df_filtered.columns:
+            y = df_filtered['engagement_probability'].fillna(0)
+            # Check if all values are the same
+            if y.nunique() <= 1:
+                self.logger.warning("All engagement_probability values are the same, using likes as alternative target")
+                # Use likes above median as high engagement
+                likes_median = df_filtered['likes'].median()
+                y = (df_filtered['likes'] > likes_median).astype(int)
+            else:
+                # Convert to binary classification using median threshold
+                y = (y > y.median()).astype(int)
+        else:
+            # Fallback to likes-based target
+            likes_median = df_filtered['likes'].median()
+            y = (df_filtered['likes'] > likes_median).astype(int)
         
         # Use last 20% as test set (simple split for evaluation)
         test_size = int(len(X) * 0.2)
@@ -133,19 +179,22 @@ class ModelEvaluator:
     
     def _add_sentiment_features(self, df, sentiment_scores):
         """Add sentiment features to dataframe"""
-        # Initialize sentiment columns
-        df['sentiment_positive'] = 0.0
-        df['sentiment_negative'] = 0.0
-        df['sentiment_neutral'] = 0.0
+        # Initialize sentiment columns with default neutral sentiment
+        df['sentiment_positive'] = 0.33  # Default neutral distribution
+        df['sentiment_negative'] = 0.33
+        df['sentiment_neutral'] = 0.34
         
-        # Map sentiment scores
-        for idx, row in df.iterrows():
-            comment_key = f"comment_{idx}_{row['comment_owner_username']}"
-            if comment_key in sentiment_scores:
-                sentiment_data = sentiment_scores[comment_key]
-                df.loc[idx, 'sentiment_positive'] = sentiment_data['positive']
-                df.loc[idx, 'sentiment_negative'] = sentiment_data['negative']
-                df.loc[idx, 'sentiment_neutral'] = sentiment_data['neutral']
+        # Map sentiment scores if available
+        if sentiment_scores:
+            for idx, row in df.iterrows():
+                comment_key = f"comment_{idx}_{row['comment_owner_username']}"
+                if comment_key in sentiment_scores:
+                    sentiment_data = sentiment_scores[comment_key]
+                    df.loc[idx, 'sentiment_positive'] = sentiment_data.get('positive', 0.33)
+                    df.loc[idx, 'sentiment_negative'] = sentiment_data.get('negative', 0.33)
+                    df.loc[idx, 'sentiment_neutral'] = sentiment_data.get('neutral', 0.34)
+        else:
+            self.logger.info("No sentiment scores available, using default neutral sentiment values")
         
         return df
     
