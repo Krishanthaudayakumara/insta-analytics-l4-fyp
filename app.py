@@ -1,1000 +1,1040 @@
+"""
+Instagram User Behavior Analysis: ML-Driven Personalized Engagement Modeling
+Main Streamlit Application
+"""
+
 import streamlit as st
 import pandas as pd
-import os
-import subprocess
-import joblib
 import numpy as np
-import re
-from analysis import sentiment_analysis, clustering_segmentation, engagement_prediction
-from recommendations import post_recommender
-from visualizations import engagement_trends
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+import os
+import sys
 
-# Import advanced ML components
-try:
-    from ui.advanced_components import AdvancedMLIntegration, AdvancedMLComponents
-    ADVANCED_ML_AVAILABLE = True
-except ImportError:
-    ADVANCED_ML_AVAILABLE = False
-    st.warning("⚠️ Advanced ML components not available. Install required packages for full functionality.")
+# Add src to path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
+# Import modules
+from preprocessing.data_processor import DataProcessor
+from follower_selection.high_value_selector import HighValueFollowerSelector
+from sentiment_analysis.bert_analyzer import BERTSentimentAnalyzer
+from models.model_trainer import ModelTrainer
+from evaluation.model_evaluator import ModelEvaluator
+from profiling.profile_generator import ProfileGenerator
+
+# Configure page
 st.set_page_config(
-    page_title="Instagram User Behavior Analysis", 
+    page_title="Instagram Engagement Modeling",
+    page_icon="📸",
     layout="wide",
-    page_icon="📊"
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Custom CSS
 st.markdown("""
 <style>
-.main-header {
-    font-size: 2.5rem;
-    color: #E91E63;
-    text-align: center;
-    margin-bottom: 1rem;
-    background: linear-gradient(45deg, #E91E63, #9C27B0);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-weight: bold;
-}
-.section-header {
-    font-size: 1.8rem;
-    color: #1976D2;
-    margin: 1rem 0;
-    border-left: 4px solid #2196F3;
-    padding-left: 1rem;
-}
+    .main-header {
+        font-size: 2.5rem;
+        color: #E4405F;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        color: #405DE6;
+        margin: 1rem 0;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        color: white;
+        margin: 0.5rem 0;
+    }
+    .status-success {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .status-error {
+        color: #dc3545;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-header">📊 Instagram User Behavior Analysis Dashboard</h1>', 
-           unsafe_allow_html=True)
-
-# Add a reload button at the top of the app
-if st.button("Reload App"):
-    st.rerun()
-
-# Sidebar for file selection
-st.sidebar.header("Data Selection & Actions")
-data_file = st.sidebar.file_uploader("Upload cleaned_merged_user_post_data.csv", type=["csv"])
-preprocess_data = st.sidebar.button("Preprocess Raw Data (Full Pipeline)")
-run_analysis = st.sidebar.button("Run Analysis Pipeline")
-
-# Advanced ML Integration
-advanced_features = []
-if ADVANCED_ML_AVAILABLE:
-    advanced_ml = AdvancedMLIntegration()
-    advanced_features = advanced_ml.add_advanced_sidebar()
-
-# Data Preprocessing Pipeline
-if preprocess_data:
-    with st.spinner("Processing raw Instagram data (extract, merge, clean)..."):
-        import subprocess
-        # Use python3 for Linux compatibility
-        subprocess.run(["python3", "scripts/process_data_posts.py"])
-        subprocess.run(["python3", "scripts/merge_with_influencers.py"])
-        subprocess.run(["python3", "scripts/clean_data.py"])
-    st.success("Data preprocessing complete! Cleaned data available in data/processed_data/cleaned_merged_user_post_data.csv.")
-    st.info("You can now upload or use the cleaned data for analysis.")
-
-if data_file:
-    df = pd.read_csv(data_file)
-    st.success("Data loaded successfully!")
-else:
-    # Try to load default data if exists
-    default_path = "data/processed_data/cleaned_merged_user_post_data.csv"
-    if os.path.exists(default_path):
-        df = pd.read_csv(default_path)
-        st.info("Loaded default data from data/processed_data/cleaned_merged_user_post_data.csv")
-    else:
-        st.warning("Please upload a data file to proceed.")
-        st.stop()
-
-if run_analysis:
-    with st.spinner("Running Sentiment Analysis..."):
-        df = sentiment_analysis.run(df)
-        if df is None:
-            st.error("Sentiment analysis failed. DataFrame is None.")
-            st.stop()
-    with st.spinner("Running Clustering/User Segmentation..."):
-        df = clustering_segmentation.run(df)
-        if df is None:
-            st.error("Clustering/segmentation failed. DataFrame is None.")
-            st.stop()
-    with st.spinner("Predicting Engagement (Advanced ML Models)..."):
-        df = engagement_prediction.run(df)
-        if df is None:
-            st.error("Engagement prediction failed. DataFrame is None.")
-            st.stop()
-    with st.spinner("Generating Engagement Visualizations..."):
-        engagement_trends.run(df)
-    with st.spinner("Generating Recommendations..."):
-        post_recommender.run(df)
-    st.success("Analysis pipeline complete! See results below.")
-
-    # Save processed data for download
-    st.download_button(
-        label="Download Results CSV",
-        data=df.to_csv(index=False),
-        file_name="final_with_all_outputs.csv",
-        mime="text/csv"
-    )
-
-# Advanced ML Analysis Section
-if ADVANCED_ML_AVAILABLE and advanced_features:
-    st.markdown('<h2 class="section-header">🧠 Advanced Machine Learning Analysis</h2>', 
-               unsafe_allow_html=True)
-    
-    try:
-        # Run advanced ML analysis
-        advanced_results = advanced_ml.integrate_with_existing_analysis(df, advanced_features)
+class InstagramEngagementApp:
+    def __init__(self):
+        self.data_processor = DataProcessor()
+        self.follower_selector = HighValueFollowerSelector()
+        self.sentiment_analyzer = BERTSentimentAnalyzer()
+        self.model_trainer = ModelTrainer()
+        self.model_evaluator = ModelEvaluator()
+        self.profile_generator = ProfileGenerator()
         
-        # Store results in session state for persistence
-        if advanced_results:
-            st.session_state.advanced_results = advanced_results
+    def main(self):
+        """Main application interface"""
+        st.markdown('<h1 class="main-header">📸 Instagram User Behavior Analysis</h1>', 
+                   unsafe_allow_html=True)
+        st.markdown('<h2 class="sub-header">ML-Driven Personalized Engagement Modeling for High-Value Followers</h2>', 
+                   unsafe_allow_html=True)
+        
+        # Sidebar navigation
+        st.sidebar.title("🚀 Navigation")
+        page = st.sidebar.selectbox(
+            "Choose Pipeline:",
+            ["🏠 Overview", "📊 Preprocess Data", "👑 Select High-Value Followers", 
+             "🧠 Sentiment Analysis", "🤖 Train Models", "📈 Evaluate Models", 
+             "👤 Generate Profiles", "📋 Visualize Results"]
+        )
+        
+        # Pipeline status in sidebar
+        self.show_pipeline_status()
+        
+        # Route to appropriate page
+        if page == "🏠 Overview":
+            self.show_overview()
+        elif page == "📊 Preprocess Data":
+            self.show_preprocessing()
+        elif page == "👑 Select High-Value Followers":
+            self.show_follower_selection()
+        elif page == "🧠 Sentiment Analysis":
+            self.show_sentiment_analysis()
+        elif page == "🤖 Train Models":
+            self.show_model_training()
+        elif page == "📈 Evaluate Models":
+            self.show_model_evaluation()
+        elif page == "👤 Generate Profiles":
+            self.show_profile_generation()
+        elif page == "📋 Visualize Results":
+            self.show_visualization()
+    
+    def show_pipeline_status(self):
+        """Show pipeline execution status"""
+        st.sidebar.markdown("### 📋 Pipeline Status")
+        
+        # Check if files exist to determine status
+        statuses = {
+            "Data Preprocessed": os.path.exists("outputs/preprocessed_data.csv"),
+            "High-Value Followers": os.path.exists("outputs/high_value_followers.json"),
+            "Sentiment Analysis": os.path.exists("outputs/sentiment_scores.json"),
+            "Models Trained": os.path.exists("outputs/rf_model.pkl"),
+            "Models Evaluated": os.path.exists("outputs/metrics.json"),
+            "Profiles Generated": os.path.exists("outputs/profiles.json")
+        }
+        
+        for step, completed in statuses.items():
+            status_icon = "✅" if completed else "⏳"
+            status_class = "status-success" if completed else "status-error"
+            st.sidebar.markdown(f'{status_icon} <span class="{status_class}">{step}</span>', 
+                              unsafe_allow_html=True)
+    
+    def show_overview(self):
+        """Show project overview and capabilities"""
+        st.markdown("### 🎯 Project Overview")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            **🚀 Key Features:**
+            - **Individual Engagement Profiles**: Granular profiles for high-value followers
+            - **Advanced ML Models**: Random Forest, XGBoost, LightGBM, TabNet, GNN, BERT
+            - **Sentiment Integration**: BERT-based sentiment analysis
+            - **High-Value Focus**: Target top 10% followers by engagement/influence
+            """)
             
-    except Exception as e:
-        st.error(f"❌ Advanced ML analysis failed: {str(e)}")
-        st.info("💡 This might be due to missing dependencies or incompatible data format.")
-
-# Display Advanced ML Results if available
-if 'advanced_results' in st.session_state:
-    st.markdown("### 🎯 Advanced Analysis Summary")
+            st.markdown("""
+            **🔬 Novel Contributions:**
+            - Individual vs. group-based segmentation
+            - High-value follower prioritization
+            - Sentiment-engagement integration
+            - Advanced ML model comparison
+            """)
+        
+        with col2:
+            st.markdown("""
+            **📊 Features Used:**
+            - `media_type`: Content type preference
+            - `Category`: Content theme preference  
+            - `likes`: Aggregate engagement
+            - `comments_count`: Aggregate engagement
+            - `comment_text`: Sentiment analysis input
+            - `comment_owner_username`: Follower ID
+            - `comment_likes`: Engagement frequency
+            - `#Followers`: Influence scoring
+            """)
+        
+        # Architecture diagram
+        st.markdown("### 🏗️ System Architecture")
+        self.show_architecture_diagram()
+        
+        # Quick start button
+        st.markdown("### 🚀 Quick Start")
+        if st.button("🎯 Start Full Pipeline", type="primary"):
+            st.info("💡 Use the sidebar to navigate through each pipeline step!")
     
-    advanced_results = st.session_state.advanced_results
-    
-    # Create summary metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if 'boosting' in advanced_results:
-            best_accuracy = advanced_results['boosting'].get('metrics', {}).get('accuracy', 0)
-            st.metric("Best Model Accuracy", f"{best_accuracy:.3f}")
-    
-    with col2:
-        if 'nlp' in advanced_results:
-            avg_sentiment = advanced_results['nlp'].get('sentiment_score', 0)
-            st.metric("Average Sentiment", f"{avg_sentiment:.2f}")
-    
-    with col3:
-        if 'gnn' in advanced_results:
-            communities = advanced_results['gnn'].get('communities_detected', 0)
-            st.metric("Communities Found", communities)
-    
-    with col4:
-        if 'multimodal' in advanced_results:
-            quality_score = advanced_results['multimodal'].get('content_quality', 0)
-            st.metric("Content Quality", f"{quality_score}/10")
-# Show data preview
-st.subheader("Data Preview")
-st.dataframe(df.head(50))
-
-# Show visualizations if available
-st.subheader("Visualizations")
-visualization_dir = "visualizations"
-if os.path.exists(visualization_dir):
-    for img in os.listdir(visualization_dir):
-        if img.endswith(".png"):
-            st.image(os.path.join(visualization_dir, img), caption=img)
-outputs_dir = "outputs"
-if os.path.exists(outputs_dir):
-    for img in os.listdir(outputs_dir):
-        if img.endswith(".png"):
-            st.image(os.path.join(outputs_dir, img), caption=img)
-
-# Show recommendations (top posts)
-st.subheader("Top 5 Recommended Posts (by engagement)")
-likes_col = 'Likes' if 'Likes' in df.columns else 'likes'
-comments_col = 'Comments' if 'Comments' in df.columns else 'comments_count'
-post_id_col = 'Post ID' if 'Post ID' in df.columns else 'post_id'
-caption_col = 'Caption' if 'Caption' in df.columns else 'caption'
-top_posts = df.sort_values(by=[likes_col, comments_col], ascending=False).head(5)
-st.table(top_posts[[post_id_col, caption_col, likes_col, comments_col]])
-
-# Content-based recommendations
-st.subheader("Content-based Recommendations (similar to top post)")
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-if len(df) > 5:
-    try:
-        if df[caption_col].dropna().astype(str).str.strip().replace('', float('nan')).dropna().empty:
-            st.warning("No valid captions for content-based recommendations.")
-        else:
-            tfidf = TfidfVectorizer(stop_words='english')
-            tfidf_matrix = tfidf.fit_transform(df[caption_col].astype(str))
-            sim_scores = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix).flatten()
-            similar_indices = sim_scores.argsort()[-6:][::-1][1:]
-            similar_posts = df.iloc[similar_indices][[post_id_col, caption_col, likes_col, comments_col]]
-            st.table(similar_posts)
-    except Exception as e:
-        st.warning(f"Content-based recommendation failed: {e}")
-
-# Collaborative filtering (by hashtags)
-st.subheader("Collaborative Filtering Recommendations (by hashtags)")
-# Check for hashtags_agg first, then hashtags
-hashtag_col = 'hashtags_agg' if 'hashtags_agg' in df.columns else 'hashtags'
-if hashtag_col in df.columns:
-    try:
-        # Only keep rows with non-empty, non-null hashtags
-        valid_hashtags = df[hashtag_col].dropna().astype(str).str.strip()
-        valid_hashtags = valid_hashtags[(valid_hashtags != '') & (valid_hashtags != 'nan')]
-        if valid_hashtags.empty:
-            st.warning("No valid hashtags for collaborative filtering.")
-        else:
-            # For hashtags_agg (comma-separated) or single hashtags
-            def clean_hashtags(h):
-                if hashtag_col == 'hashtags_agg' and ',' in h:
-                    # hashtags_agg: comma-separated
-                    return ' '.join([tag.strip() for tag in h.split(',') if tag.strip()])
-                elif ' ' in h:
-                    # Space-separated hashtags
-                    return ' '.join([tag.strip() for tag in h.split() if tag.strip()])
-                else:
-                    # Single hashtag
-                    return h.strip()
+    def show_architecture_diagram(self):
+        """Show system architecture flow"""
+        fig = go.Figure()
+        
+        # Create flow diagram
+        steps = [
+            "Dataset\n(data.csv)",
+            "Preprocessing\nModule",
+            "Follower Selection\nModule",
+            "Sentiment Analysis\nModule", 
+            "Model Training\nModule",
+            "Model Evaluation\nModule",
+            "Profile Generation\nModule",
+            "Streamlit\nInterface"
+        ]
+        
+        y_positions = [7, 6, 5, 4, 3, 2, 1, 0]
+        
+        for i, (step, y) in enumerate(zip(steps, y_positions)):
+            fig.add_shape(
+                type="rect",
+                x0=0, y0=y-0.3, x1=2, y1=y+0.3,
+                fillcolor="lightblue",
+                line=dict(color="blue", width=2)
+            )
+            fig.add_annotation(
+                x=1, y=y,
+                text=step,
+                showarrow=False,
+                font=dict(size=10)
+            )
             
-            # Apply cleaning to valid hashtags only
-            df_filtered = df[df[hashtag_col].isin(valid_hashtags)].copy()
-            df_filtered['hashtags_str'] = df_filtered[hashtag_col].apply(clean_hashtags)
+            if i < len(steps) - 1:
+                fig.add_annotation(
+                    x=1, y=y-0.5,
+                    text="↓",
+                    showarrow=False,
+                    font=dict(size=20, color="blue")
+                )
+        
+        fig.update_layout(
+            title="System Architecture Flow",
+            xaxis=dict(range=[-0.5, 2.5], showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(range=[-0.5, 7.5], showgrid=False, zeroline=False, showticklabels=False),
+            height=600,
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    def show_preprocessing(self):
+        """Data preprocessing interface"""
+        st.markdown("### 📊 Data Preprocessing")
+        
+        # File upload
+        uploaded_file = st.file_uploader(
+            "Upload Instagram Dataset (CSV)", 
+            type=['csv'],
+            help="Upload your Instagram dataset with required fields"
+        )
+        
+        if uploaded_file is not None:
+            # Preview data
+            df = pd.read_csv(uploaded_file)
+            st.success(f"✅ Dataset loaded successfully! Shape: {df.shape}")
             
-            # Remove empty strings after cleaning
-            df_filtered = df_filtered[df_filtered['hashtags_str'].str.strip() != '']
+            with st.expander("📊 Data Preview"):
+                st.dataframe(df.head())
             
-            if df_filtered.empty or df_filtered['hashtags_str'].str.strip().replace('', float('nan')).dropna().empty:
-                st.warning("No valid hashtags for collaborative filtering after cleaning.")
-            else:
-                # Use min_df=1 to avoid empty vocabulary
-                tfidf_hash = TfidfVectorizer(token_pattern=r'(?u)\\b\\w+\\b', min_df=1, max_df=0.95)
-                tfidf_matrix_hash = tfidf_hash.fit_transform(df_filtered['hashtags_str'])
-                if tfidf_matrix_hash.shape[0] > 1:
-                    sim_scores_hash = cosine_similarity(tfidf_matrix_hash[0:1], tfidf_matrix_hash).flatten()
-                    similar_indices_hash = sim_scores_hash.argsort()[-6:][::-1][1:]
-                    similar_posts_hash = df_filtered.iloc[similar_indices_hash][[post_id_col, caption_col, likes_col, comments_col]]
-                    st.table(similar_posts_hash)
-                else:
-                    st.warning("Not enough posts with hashtags for collaborative filtering.")
-    except Exception as e:
-        st.warning(f"Collaborative filtering failed: {e}")
-else:
-    st.warning("No hashtag columns found in the data.")
-
-# --- Download trained models section ---
-import streamlit as st
-import os
-
-st.subheader("Download Trained ML Models")
-model_files = [
-    ("Linear Regression", "outputs/model_linear_regression.joblib"),
-    ("Ridge Regression", "outputs/model_ridge.joblib"),
-    ("Random Forest", "outputs/model_random_forest.joblib"),
-    ("Feature Columns", "outputs/model_features.joblib")
-]
-for label, path in model_files:
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            st.download_button(f"Download {label} Model", f, file_name=os.path.basename(path))
-    else:
-        st.warning(f"{label} model not found. Run the analysis pipeline first.")
-
-# --- ML Model Evaluation UI ---
-st.subheader("Predict Engagement for Custom Input")
-import joblib
-import numpy as np
-
-# Load models and features if available
-model_paths = {
-    'LinearRegression': 'outputs/model_linear_regression.joblib',
-    'Ridge': 'outputs/model_ridge.joblib',
-    'RandomForest': 'outputs/model_random_forest.joblib',
-    'Features': 'outputs/model_features.joblib'
-}
-models = {}
-for k, v in model_paths.items():
-    if os.path.exists(v):
-        models[k] = joblib.load(v)
-
-# Only show prediction form if models and features are loaded
-if 'Features' in models and len(models['Features']) > 0:
-    st.markdown("Enter post/user details to predict engagement:")
-    user_input = {}
-    for feat in models['Features']:
-        # Provide reasonable defaults and input types
-        if feat in ['caption_sentiment', 'caption_sentiment_vader']:
-            user_input[feat] = st.number_input(f"{feat}", value=0.0, format="%.3f")
-        elif feat in ['hour_of_day', 'day_of_week', 'user_cluster_k', 'user_cluster_agglom']:
-            user_input[feat] = st.number_input(f"{feat}", value=0, step=1)
-        else:
-            user_input[feat] = st.number_input(f"{feat}", value=0.0)
-    if st.button("Predict Engagement"):
-        X_pred = np.array([[user_input.get(f, 0) for f in models['Features']]])
-        st.write("Predictions:")
-        for k in ['LinearRegression', 'Ridge', 'RandomForest']:
-            if k in models:
-                pred = models[k].predict(X_pred)[0]
-                st.write(f"{k}: {pred:.2f}")
-else:
-    st.info("Trained models not found or features missing. Run the analysis pipeline first.")
-
-# --- Predict Likes and Comments for Custom Input ---
-st.subheader("Predict Likes and Comments for Custom Input (Separate Models)")
-import joblib
-import numpy as np
-
-# Load models and features for likes and comments if available
-model_paths_likes = {
-    'LinearRegression_likes': 'outputs/model_linear_regression_likes.joblib',
-    'Ridge_likes': 'outputs/model_ridge_likes.joblib',
-    'RandomForest_likes': 'outputs/model_random_forest_likes.joblib',
-    'Features_likes': 'outputs/model_features_likes.joblib'
-}
-model_paths_comments = {
-    'LinearRegression_comments': 'outputs/model_linear_regression_comments.joblib',
-    'Ridge_comments': 'outputs/model_ridge_comments.joblib',
-    'RandomForest_comments': 'outputs/model_random_forest_comments.joblib',
-    'Features_comments': 'outputs/model_features_comments.joblib'
-}
-models_likes = {}
-for k, v in model_paths_likes.items():
-    if os.path.exists(v):
-        models_likes[k] = joblib.load(v)
-models_comments = {}
-for k, v in model_paths_comments.items():
-    if os.path.exists(v):
-        models_comments[k] = joblib.load(v)
-
-# Only show prediction form if models and features are loaded for both
-if (
-    'Features_likes' in models_likes and len(models_likes['Features_likes']) > 0 and
-    'Features_comments' in models_comments and len(models_comments['Features_comments']) > 0
-):
-    st.markdown("Enter post/user details to predict likes and comments:")
-    # Exclude 'likes' from likes input, and 'comments'/'comments_count' from comments input
-    features_likes = [f for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']]
-    features_comments = [f for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']]
-    all_features = sorted(set(features_likes) | set(features_comments))
-    user_input = {}
-    for feat in all_features:
-        if feat in ['caption_sentiment', 'caption_sentiment_vader']:
-            user_input[feat] = st.number_input(f"{feat}", value=0.0, format="%.3f", key=f"likecom_{feat}")
-        elif feat in ['hour_of_day', 'day_of_week', 'user_cluster_k', 'user_cluster_agglom']:
-            user_input[feat] = st.number_input(f"{feat}", value=0, step=1, key=f"likecom_{feat}")
-        else:
-            user_input[feat] = st.number_input(f"{feat}", value=0.0, key=f"likecom_{feat}")
-    if st.button("Predict Likes and Comments", key="predict_likes_comments"):
-        # Use the exact feature order and count for each model
-        X_pred_likes = np.array([[user_input.get(f, 0) for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']]])
-        X_pred_comments = np.array([[user_input.get(f, 0) for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']]])
-        # If the number of features does not match, show a warning and skip prediction
-        if X_pred_likes.shape[1] != len([f for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']]):
-            st.error(f"Input for likes prediction has {X_pred_likes.shape[1]} features, but model expects {len([f for f in models_likes['Features_likes'] if f.lower() not in ['likes', 'comments', 'comments_count']])}.")
-        else:
-            st.write("Predicted Likes:")
-            for k in ['LinearRegression_likes', 'Ridge_likes', 'RandomForest_likes']:
-                if k in models_likes:
-                    pred = models_likes[k].predict(X_pred_likes)[0]
-                    st.write(f"{k.replace('_likes','')}: {pred:.2f}")
-        if X_pred_comments.shape[1] != len([f for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']]):
-            st.error(f"Input for comments prediction has {X_pred_comments.shape[1]} features, but model expects {len([f for f in models_comments['Features_comments'] if f.lower() not in ['comments', 'comments_count', 'likes']])}.")
-        else:
-            st.write("Predicted Comments:")
-            for k in ['LinearRegression_comments', 'Ridge_comments', 'RandomForest_comments']:
-                if k in models_comments:
-                    pred = models_comments[k].predict(X_pred_comments)[0]
-                    st.write(f"{k.replace('_comments','')}: {pred:.2f}")
-else:
-    st.info("Trained like/comment models or features not found. Please run the training pipeline for both targets.")
-
-# --- Sidebar Model Training Buttons ---
-st.sidebar.subheader("Model Training & Pipelines")
-if 'df' in locals() or 'df' in globals():
-    if st.sidebar.button("Train Like/Comment Models (Pipeline)"):
-        with st.spinner("Training like/comment ML models..."):
-            from analysis.engagement_prediction import train_and_save_like_comment_models
-            train_and_save_like_comment_models(df)
-        st.success("Like/comment models trained and saved! You can now use the prediction UI below.")
-    if st.sidebar.button("Train Personalized Post Recommendation Model"):
-        with st.spinner("Training personalized post recommendation model..."):
-            from analysis.engagement_prediction import train_and_save_post_recommendation_model
-            train_and_save_post_recommendation_model(df)
-        st.success("Personalized post recommendation model trained and saved!")
-else:
-    st.sidebar.info("Please load data before training models.")
-
-# --- Model Performance Evaluation Dashboard ---
-st.header("🎯 Model Performance Evaluation")
-st.markdown("---")
-
-# Store dataframe in session state for dashboard access
-if 'df' in locals() and df is not None:
-    st.session_state.df = df
-
-# Import the evaluation dashboard
-from model_evaluation_dashboard import show_model_evaluation_dashboard
-
-# Display the comprehensive model evaluation dashboard
-show_model_evaluation_dashboard()
-
-st.markdown("---")
-
-# --- Advanced Personalized Post Recommendations ---
-st.subheader("Advanced Personalized Post Recommendations")
-user_col = 'username' if 'username' in df.columns else 'user'
-if user_col not in df.columns:
-    st.info("No user column found in data.")
-else:
-    # Filter out invalid usernames (True, False, 1, 0, empty, numeric, floats, whitespace)
-    import re
-    def is_valid_username(u):
-        if not isinstance(u, str):
-            return False
-        u_strip = u.strip()
-        if u_strip.lower() in ('true', 'false', 'username', '', 'none'):
-            return False
-        if u_strip.isnumeric():
-            return False
-        # Exclude floats
-        try:
-            float(u_strip)
-            return False
-        except ValueError:
-            pass
-        # Exclude if only whitespace
-        if not u_strip:
-            return False
-        # Exclude if looks like a sentence or is too long
-        if len(u_strip) > 30:
-            return False
-        # Exclude if contains spaces and is not a typical username
-        if ' ' in u_strip and not re.match(r'^[a-zA-Z0-9_.-]+$', u_strip.replace(' ', '')):
-            return False
-        return True
-    required_cols = ['caption_length', 'num_hashtags', 'engagement_rate']
-    user_list = []
-    debug_info = []
-    for u in df[user_col].unique().tolist():
-        valid_flag = is_valid_username(u)
-        debug_info.append((u, valid_flag))
-        if valid_flag and u not in user_list:
-            user_list.append(u)
-    if not user_list:
-        st.warning("No users with valid data found in the dataset.")
-        st.write("#### Debug: Sample of usernames and filtering status")
-        st.write(pd.DataFrame(debug_info, columns=["username", "is_valid_username"]).head(30))
-        st.stop()
-    selected_user = st.selectbox("Select a user for advanced personalized recommendations:", user_list)
-    if selected_user:
-        user_df = df[df[user_col] == selected_user]
-        if user_df.empty:
-            st.warning(f"No data found for user '{selected_user}'. Please select another user.")
-            st.stop()
-        # 1. Show user profile summary
-        st.markdown(f"**Profile for {selected_user}:**")
-        st.write({
-            "Followers": int(user_df['#Followers'].iloc[0]) if '#Followers' in user_df else "N/A",
-            "Cluster": int(user_df['user_cluster_k'].iloc[0]) if 'user_cluster_k' in user_df else "N/A",
-            "Recent Sentiment": user_df['caption_sentiment'].value_counts().idxmax() if 'caption_sentiment' in user_df else "N/A",
-            "Avg Engagement Rate": round(user_df['engagement_rate'].mean(), 3) if 'engagement_rate' in user_df else "N/A"
-        })
-        # 2. Identify high-value followers (top commenters)
-        st.markdown("**High-Value Followers (Top Engagers):**")
-        if 'comment_owner_username' in user_df.columns:
-            top_engagers = user_df['comment_owner_username'].value_counts().head(5)
-            st.write(top_engagers)
-            high_value_followers = top_engagers.index.tolist()
-        else:
-            st.info("No per-commenter data available for this user.")
-            high_value_followers = []
-        # 3. Personalized Recommendation for Next Post (for the user)
-        st.markdown("**AI-Recommended Next Post (for Higher Engagement):**")
-        import joblib
-        rec_model_path = 'outputs/model_post_recommendation.joblib'
-        feature_cols_path = 'outputs/model_post_recommendation_features.joblib'
-        if os.path.exists(rec_model_path) and os.path.exists(feature_cols_path):
-            rec_model = joblib.load(rec_model_path)
-            feature_cols = joblib.load(feature_cols_path)
-            rec_features = {}
-            # Map sentiment strings to numeric values for model input
-            sentiment_map = {'positive': 1, 'neutral': 0, 'negative': -1}
-            for feat in feature_cols:
-                if feat == 'caption_sentiment':
-                    val = user_df[feat].iloc[0] if feat in user_df and not user_df[feat].dropna().empty else 0
-                    if isinstance(val, str):
-                        rec_features[feat] = sentiment_map.get(val.lower(), 0)
-                    else:
-                        rec_features[feat] = val
-                elif feat in user_df and not user_df[feat].dropna().empty:
-                    rec_features[feat] = user_df[feat].iloc[0]
-                else:
-                    rec_features[feat] = 0
-            # Handle category encoding for recommendation
-            category_encoder_path = 'outputs/model_post_recommendation_category_encoder.joblib'
-            if 'Category_encoded' in feature_cols and os.path.exists(category_encoder_path):
-                le = joblib.load(category_encoder_path)
-                if 'Category' in user_df and not user_df['Category'].dropna().empty:
-                    cat_val = user_df['Category'].iloc[0]
-                    rec_features['Category_encoded'] = le.transform([str(cat_val)])[0] if cat_val in le.classes_ else 0
-                else:
-                    rec_features['Category_encoded'] = 0
-            # --- Clean up debug output and refine recommendation display ---
-            rec = rec_model.recommend(rec_features, user_df=user_df)
-            # Decode recommended category if possible
-            recommended_category = None
-            if 'Category_encoded' in feature_cols and os.path.exists(category_encoder_path):
-                le = joblib.load(category_encoder_path)
-                if isinstance(rec.get('category', None), (int, float)) and rec.get('category', None) != 'N/A':
+            with st.expander("📋 Data Info"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("**Columns:**")
+                    st.write(list(df.columns))
+                with col2:
+                    st.write("**Missing Values:**")
+                    st.write(df.isnull().sum())
+            
+            # Preprocessing options
+            st.markdown("#### 🔧 Preprocessing Options")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                handle_missing = st.selectbox(
+                    "Handle Missing Values:",
+                    ["Drop rows", "Impute median", "Impute mean"]
+                )
+            with col2:
+                normalize_features = st.checkbox("Normalize numerical features", value=True)
+            
+            # Process button
+            if st.button("🚀 Process Data", type="primary"):
+                with st.spinner("Processing data..."):
                     try:
-                        recommended_category = le.inverse_transform([int(rec['category'])])[0]
-                    except Exception:
-                        recommended_category = None
-                elif isinstance(rec.get('category', None), str) and rec.get('category', None) not in (None, '', 'N/A'):
-                    recommended_category = rec.get('category')
-            elif rec.get('category', None) not in (None, '', 'N/A'):
-                recommended_category = rec.get('category')
-
-            # Only show fields if a valid recommendation is available
-            st.write("**Recommended Caption Sentiment:**", rec.get('caption_sentiment', 'N/A'))
-            st.write("**Recommended Caption Length (words):**", rec.get('caption_length', 'N/A'))
-            if recommended_category:
-                st.write("**Recommended Post Category:**", recommended_category)
-            # Show hashtags or fallback to most common from user history
-            hashtags = rec.get('hashtags', [])
-            if hashtags:
-                st.write("**Recommended Hashtags:**", ', '.join(hashtags))
-            else:
-                # Fallback: suggest most common hashtags from user's history
-                if 'hashtags_agg' in user_df and not user_df['hashtags_agg'].dropna().empty:
-                    from collections import Counter
-                    all_hashtags = []
-                    for h in user_df['hashtags_agg'].dropna().astype(str):
-                        # Handle comma-separated hashtags in hashtags_agg
-                        if ',' in h:
-                            all_hashtags.extend([tag.strip() for tag in h.split(',') if tag.strip()])
-                        else:
-                            all_hashtags.extend([tag.strip() for tag in h.split() if tag.strip()])
-                    top_hashtags = [h for h, _ in Counter(all_hashtags).most_common(5)]
-                    if top_hashtags:
-                        st.write("**Suggested Hashtags (from history):**", ', '.join(top_hashtags))
-            if rec.get('theme', None) not in (None, '', 'N/A'):
-                st.write("**Recommended Content Theme:**", rec.get('theme'))
-            
-            # Show keywords from the recommendation model or analyze user's posts
-            model_keywords = rec.get('keywords', [])
-            if model_keywords:
-                st.write("**Recommended Caption Keywords:**", ', '.join(model_keywords))
-            else:
-                # Fallback to manual keyword analysis
-                st.write("**Recommended Caption Keywords:**")
-                try:
-                    from collections import Counter
-                    import re
-                    import nltk
-                    
-                    # Ensure NLTK resources are available
-                    try:
-                        nltk.data.find('tokenizers/punkt')
-                    except LookupError:
-                        nltk.download('punkt')
-                    try:
-                        nltk.data.find('corpora/stopwords')
-                    except LookupError:
-                        nltk.download('stopwords')
-                    
-                    from nltk.corpus import stopwords
-                    from nltk.tokenize import word_tokenize
-                    
-                    # Get user's high-engagement posts (top 25% by engagement rate)
-                    if 'engagement_rate' in user_df and not user_df['engagement_rate'].dropna().empty:
-                        engagement_threshold = user_df['engagement_rate'].quantile(0.75)
-                        high_engagement_posts = user_df[user_df['engagement_rate'] >= engagement_threshold]
-                    else:
-                        # Fallback to top posts by likes if no engagement rate
-                        if 'likes' in user_df and len(user_df) > 1:
-                            likes_threshold = user_df['likes'].quantile(0.75)
-                            high_engagement_posts = user_df[user_df['likes'] >= likes_threshold]
-                        else:
-                            high_engagement_posts = user_df.head(5)  # Use recent posts
-                    
-                    # Extract keywords from captions of high-engagement posts
-                    caption_col = 'caption' if 'caption' in high_engagement_posts else 'Caption'
-                    if caption_col in high_engagement_posts and not high_engagement_posts[caption_col].dropna().empty:
-                        all_captions = ' '.join(high_engagement_posts[caption_col].dropna().astype(str))
-                        
-                        # Clean and tokenize text
-                        # Remove hashtags, mentions, URLs, and special characters
-                        cleaned_text = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', all_captions.lower())
-                        
-                        # Tokenize and remove stopwords
-                        stop_words = set(stopwords.words('english'))
-                        words = word_tokenize(cleaned_text)
-                        keywords = [word for word in words if word.isalpha() and len(word) > 2 and word not in stop_words]
-                        
-                        # Get most common keywords
-                        keyword_counts = Counter(keywords)
-                        top_keywords = [word for word, _ in keyword_counts.most_common(8)]
-                        
-                        if top_keywords:
-                            st.write(f"💡 **Based on your top-performing posts:** {', '.join(top_keywords)}")
-                            
-                            # Additional category-specific keywords
-                            category_keywords = {
-                                'travel': ['adventure', 'journey', 'explore', 'destination', 'wanderlust', 'vacation', 'trip'],
-                                'fashion': ['style', 'outfit', 'trendy', 'chic', 'fashionable', 'look', 'design'],
-                                'food': ['delicious', 'tasty', 'recipe', 'yummy', 'flavor', 'cooking', 'fresh'],
-                                'fitness': ['workout', 'healthy', 'strong', 'training', 'motivation', 'goals', 'fit'],
-                                'beauty': ['skincare', 'makeup', 'glow', 'natural', 'beautiful', 'radiant', 'care'],
-                                'lifestyle': ['inspiration', 'motivation', 'happiness', 'positivity', 'mindful', 'grateful'],
-                                'business': ['success', 'growth', 'innovation', 'professional', 'strategy', 'leadership']
-                            }
-                            
-                            user_category = user_df['Category'].iloc[0] if 'Category' in user_df and not user_df['Category'].dropna().empty else None
-                            if user_category and str(user_category).lower() in category_keywords:
-                                category_words = category_keywords[str(user_category).lower()]
-                                # Remove already suggested keywords
-                                new_category_words = [w for w in category_words if w not in top_keywords][:4]
-                                if new_category_words:
-                                    st.write(f"🎯 **Category-specific suggestions ({user_category}):** {', '.join(new_category_words)}")
-                        else:
-                            st.write("No specific keywords identified from your posts.")
-                    else:
-                        st.write("No caption data available for keyword analysis.")
-                except Exception as e:
-                    st.write("Keyword analysis unavailable.")
-            
-            # Add explanatory info box about engagement rate
-            with st.expander("ℹ️ What is Engagement Rate?", expanded=False):
-                st.markdown("""
-                **Engagement Rate** = (Total Engagements ÷ Total Followers) × 100
-                
-                - **Total Engagements** = Likes + Comments + Shares + Saves
-                - **Industry Benchmarks:**
-                  - 🔥 **Excellent**: 6%+ (top-tier influencers)
-                  - ✅ **Good**: 3-6% (above average performance)
-                  - 📊 **Average**: 1-3% (typical for most accounts)
-                  - 📉 **Below Average**: <1% (needs optimization)
-                
-                **Example**: If you have 10,000 followers and get 500 total engagements, your rate is 5% (good performance).
-                """)
-            
-            # Enhanced Engagement Rate Display with Context
-            engagement_rate = rec.get('expected_engagement_rate', 'N/A')
-            if engagement_rate != 'N/A':
-                engagement_percent = round(float(engagement_rate) * 100, 2)
-                st.write(f"**Expected Engagement Rate:** {engagement_percent}%")
-                
-                # Add context about what this means
-                if engagement_percent >= 6:
-                    st.success(f"🔥 Excellent engagement rate! ({engagement_percent}% is above 6% - top-tier performance)")
-                elif engagement_percent >= 3:
-                    st.info(f"✅ Good engagement rate! ({engagement_percent}% is above average - expect strong audience interaction)")
-                elif engagement_percent >= 1:
-                    st.warning(f"📊 Average engagement rate ({engagement_percent}% - typical for most accounts)")
-                else:
-                    st.error(f"📉 Below average engagement rate ({engagement_percent}% - consider optimizing content)")
-                
-                # Calculate expected interactions based on follower count
-                follower_count = user_df['#Followers'].iloc[0] if '#Followers' in user_df.columns and not user_df['#Followers'].empty else None
-                if follower_count and follower_count > 0:
-                    expected_engagements = int(follower_count * float(engagement_rate))
-                    st.write(f"**Expected Total Engagements:** ~{expected_engagements:,} interactions (likes + comments)")
-                    st.caption(f"Based on your {follower_count:,} followers × {engagement_percent}% engagement rate")
-            else:
-                st.write("**Expected Engagement Rate:**", engagement_rate)
-            
-            # Add Like Count Prediction
-            st.markdown("---")
-            st.subheader("📈 Predicted Performance Metrics")
-            
-            # Try to load like prediction models
-            like_models = {
-                'Linear Regression': 'outputs/model_linear_regression_likes.joblib',
-                'Random Forest': 'outputs/model_random_forest_likes.joblib',
-                'Ridge Regression': 'outputs/model_ridge_likes.joblib'
-            }
-            
-            like_features_path = 'outputs/model_features_likes.joblib'
-            
-            if os.path.exists(like_features_path):
-                like_feature_cols = joblib.load(like_features_path)
-                
-                # Prepare features for like prediction
-                like_features = {}
-                for feat in like_feature_cols:
-                    if feat == 'caption_sentiment':
-                        val = user_df[feat].iloc[0] if feat in user_df and not user_df[feat].dropna().empty else 0
-                        if isinstance(val, str):
-                            like_features[feat] = sentiment_map.get(val.lower(), 0)
-                        else:
-                            like_features[feat] = val
-                    elif feat in user_df and not user_df[feat].dropna().empty:
-                        like_features[feat] = user_df[feat].iloc[0]
-                    else:
-                        like_features[feat] = 0
-                
-                # Handle category encoding for likes
-                if 'Category_encoded' in like_feature_cols and os.path.exists(category_encoder_path):
-                    le = joblib.load(category_encoder_path)
-                    if 'Category' in user_df and not user_df['Category'].dropna().empty:
-                        cat_val = user_df['Category'].iloc[0]
-                        like_features['Category_encoded'] = le.transform([str(cat_val)])[0] if cat_val in le.classes_ else 0
-                    else:
-                        like_features['Category_encoded'] = 0
-                
-                # Predict likes with different models
-                like_predictions = {}
-                for model_name, model_path in like_models.items():
-                    if os.path.exists(model_path):
-                        try:
-                            like_model = joblib.load(model_path)
-                            X_input = np.array([[like_features.get(f, 0) for f in like_feature_cols]])
-                            pred_likes = max(0, int(like_model.predict(X_input)[0]))  # Ensure non-negative
-                            like_predictions[model_name] = pred_likes
-                        except Exception as e:
-                            st.warning(f"Could not load {model_name} likes model: {e}")
-                
-                if like_predictions:
-                    # Display predictions
-                    avg_likes = int(np.mean(list(like_predictions.values())))
-                    st.write(f"**Predicted Likes:** ~{avg_likes:,}")
-                    
-                    # Show range
-                    min_likes = min(like_predictions.values())
-                    max_likes = max(like_predictions.values())
-                    if min_likes != max_likes:
-                        st.caption(f"Model range: {min_likes:,} - {max_likes:,} likes")
-                    
-                    # Compare with user's average
-                    if 'likes' in user_df.columns:
-                        user_avg_likes = user_df['likes'].mean()
-                        if avg_likes > user_avg_likes:
-                            improvement = ((avg_likes - user_avg_likes) / user_avg_likes) * 100
-                            st.success(f"🚀 {improvement:.1f}% better than your average ({user_avg_likes:.0f} likes)")
-                        elif avg_likes < user_avg_likes * 0.9:
-                            st.info(f"📊 Below your average ({user_avg_likes:.0f} likes) - consider refining strategy")
-                    
-                    # Show individual model predictions in expander
-                    with st.expander("View detailed model predictions"):
-                        for model_name, pred in like_predictions.items():
-                            st.write(f"- {model_name}: {pred:,} likes")
-                else:
-                    st.info("Like prediction models not available")
-                    
-                # Add Comment Count Prediction
-                comment_models = {
-                    'Linear Regression': 'outputs/model_linear_regression_comments.joblib',
-                    'Random Forest': 'outputs/model_random_forest_comments.joblib',
-                    'Ridge Regression': 'outputs/model_ridge_comments.joblib'
-                }
-                
-                comment_features_path = 'outputs/model_features_comments.joblib'
-                
-                if os.path.exists(comment_features_path):
-                    comment_feature_cols = joblib.load(comment_features_path)
-                    
-                    # Prepare features for comment prediction
-                    comment_features = {}
-                    for feat in comment_feature_cols:
-                        if feat == 'caption_sentiment':
-                            val = user_df[feat].iloc[0] if feat in user_df and not user_df[feat].dropna().empty else 0
-                            if isinstance(val, str):
-                                comment_features[feat] = sentiment_map.get(val.lower(), 0)
-                            else:
-                                comment_features[feat] = val
-                        elif feat in user_df and not user_df[feat].dropna().empty:
-                            comment_features[feat] = user_df[feat].iloc[0]
-                        else:
-                            comment_features[feat] = 0
-                    
-                    # Handle category encoding for comments
-                    if 'Category_encoded' in comment_feature_cols and os.path.exists(category_encoder_path):
-                        le = joblib.load(category_encoder_path)
-                        if 'Category' in user_df and not user_df['Category'].dropna().empty:
-                            cat_val = user_df['Category'].iloc[0]
-                            comment_features['Category_encoded'] = le.transform([str(cat_val)])[0] if cat_val in le.classes_ else 0
-                        else:
-                            comment_features['Category_encoded'] = 0
-                    
-                    # Predict comments with different models
-                    comment_predictions = {}
-                    for model_name, model_path in comment_models.items():
-                        if os.path.exists(model_path):
-                            try:
-                                comment_model = joblib.load(model_path)
-                                X_input = np.array([[comment_features.get(f, 0) for f in comment_feature_cols]])
-                                pred_comments = max(0, int(comment_model.predict(X_input)[0]))  # Ensure non-negative
-                                comment_predictions[model_name] = pred_comments
-                            except Exception as e:
-                                st.warning(f"Could not load {model_name} comments model: {e}")
-                    
-                    if comment_predictions:
-                        # Display comment predictions
-                        avg_comments = int(np.mean(list(comment_predictions.values())))
-                        st.write(f"**Predicted Comments:** ~{avg_comments:,}")
-                        
-                        # Show range
-                        min_comments = min(comment_predictions.values())
-                        max_comments = max(comment_predictions.values())
-                        if min_comments != max_comments:
-                            st.caption(f"Model range: {min_comments:,} - {max_comments:,} comments")
-                        
-                        # Compare with user's average
-                        if 'comments_count' in user_df.columns:
-                            user_avg_comments = user_df['comments_count'].mean()
-                            if avg_comments > user_avg_comments:
-                                improvement = ((avg_comments - user_avg_comments) / user_avg_comments) * 100
-                                st.success(f"💬 {improvement:.1f}% more comments than your average ({user_avg_comments:.0f})")
-                            elif avg_comments < user_avg_comments * 0.9:
-                                st.info(f"💬 Below your average ({user_avg_comments:.0f} comments)")
-                        
-                        # Add comment predictions to detailed view
-                        with st.expander("View detailed comment predictions"):
-                            for model_name, pred in comment_predictions.items():
-                                st.write(f"- {model_name}: {pred:,} comments")
-                    
-                    # Calculate total predicted engagement
-                    if like_predictions and comment_predictions:
-                        total_predicted_engagement = avg_likes + avg_comments
-                        st.markdown("---")
-                        st.metric(
-                            label="**Total Predicted Engagement**",
-                            value=f"{total_predicted_engagement:,}",
-                            help="Combined likes + comments prediction"
+                        processed_data = self.data_processor.process_data(
+                            df, 
+                            handle_missing=handle_missing,
+                            normalize=normalize_features
                         )
                         
-                        # Calculate predicted engagement rate
-                        if follower_count and follower_count > 0:
-                            predicted_engagement_rate = (total_predicted_engagement / follower_count) * 100
-                            st.metric(
-                                label="**Predicted Engagement Rate**",
-                                value=f"{predicted_engagement_rate:.2f}%",
-                                delta=f"{abs(predicted_engagement_rate - engagement_percent):.2f}% vs expected",
-                                help="Based on likes + comments predictions"
-                            )
-            else:
-                st.info("Like prediction features not found. Train models first to get like predictions.")
+                        # Save processed data
+                        processed_data.to_csv("outputs/preprocessed_data.csv", index=False)
+                        
+                        st.success("✅ Data preprocessing completed!")
+                        st.info(f"📊 Processed shape: {processed_data.shape}")
+                        
+                        with st.expander("📊 Processed Data Preview"):
+                            st.dataframe(processed_data.head())
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error during preprocessing: {str(e)}")
+        
         else:
-            st.info("Personalized post recommendation model not found. Please train it from the sidebar.")
-        # 4. Personalized Recommendations for High-Value Followers
-        if high_value_followers:
-            st.markdown("**Personalized Recommendations for High-Value Followers:**")
-            # --- Combined Overall Recommendation ---
-            all_recs = [rec]
-            for follower in high_value_followers:
-                follower_comments = user_df[user_df['comment_owner_username'] == follower]
-                follower_sentiment = follower_comments['caption_sentiment'].value_counts().idxmax() if 'caption_sentiment' in follower_comments and not follower_comments.empty else 'neutral'
-                follower_features = rec_features.copy()
-                if isinstance(follower_sentiment, str):
-                    follower_features['caption_sentiment'] = sentiment_map.get(follower_sentiment.lower(), 0)
-                else:
-                    follower_features['caption_sentiment'] = follower_sentiment
-                follower_rec = rec_model.recommend(follower_features, user_df=user_df)
-                all_recs.append(follower_rec)
-            # Aggregate overall recommendation
-            from collections import Counter
-            def most_common(lst):
-                return Counter(lst).most_common(1)[0][0] if lst else 'N/A'
-            sentiments = [r.get('caption_sentiment', None) for r in all_recs if r.get('caption_sentiment', None) is not None]
-            caption_lengths = [r.get('caption_length', None) for r in all_recs if r.get('caption_length', None) is not None]
-            hashtags = sum([r.get('hashtags', []) for r in all_recs if r.get('hashtags', [])], [])
-            engagement_rates = [r.get('expected_engagement_rate', None) for r in all_recs if r.get('expected_engagement_rate', None) is not None]
-            st.markdown("**Combined Overall Recommendation:**")
-            st.write({
-                "Most Common Caption Sentiment": most_common(sentiments),
-                "Average Caption Length (words)": round(sum(caption_lengths)/len(caption_lengths), 2) if caption_lengths else 'N/A',
-                "Most Common Hashtags": ', '.join([h for h, _ in Counter(hashtags).most_common(3)]) if hashtags else 'N/A',
-                "Average Expected Engagement Rate": round(sum(engagement_rates)/len(engagement_rates), 3) if engagement_rates else 'N/A'
-            })
-            st.markdown("---")
-            for follower in high_value_followers:
-                follower_comments = user_df[user_df['comment_owner_username'] == follower]
-                follower_sentiment = follower_comments['caption_sentiment'].value_counts().idxmax() if 'caption_sentiment' in follower_comments and not follower_comments.empty else 'neutral'
-                follower_features = rec_features.copy()
-                # Map follower sentiment to numeric
-                if isinstance(follower_sentiment, str):
-                    follower_features['caption_sentiment'] = sentiment_map.get(follower_sentiment.lower(), 0)
-                else:
-                    follower_features['caption_sentiment'] = follower_sentiment
-                follower_rec = rec_model.recommend(follower_features, user_df=user_df)
-                st.write(f"**Follower:** {follower}")
-                st.write("Recommended Caption Sentiment:", follower_rec.get('caption_sentiment', 'N/A'))
-                st.write("Recommended Caption Length (words):", follower_rec.get('caption_length', 'N/A'))
-                st.write("Recommended Hashtags:", ', '.join(follower_rec.get('hashtags', [])))
-                st.write("Expected Engagement Rate:", follower_rec.get('expected_engagement_rate', 'N/A'))
-                st.markdown("---")
-
-# --- Trending Keywords Analysis ---
-st.subheader("📈 Trending Keywords in Dataset")
-try:
-    from collections import Counter
-    import re
-    import nltk
+            st.info("📁 Please upload a CSV file to begin preprocessing")
+            
+            # Sample data option
+            if st.button("🎲 Use Sample Data"):
+                sample_data = self.generate_sample_data()
+                sample_data.to_csv("outputs/preprocessed_data.csv", index=False)
+                st.success("✅ Sample data generated and saved!")
+                st.dataframe(sample_data.head())
     
-    # Get captions from high-engagement posts across the dataset
-    caption_col = 'caption' if 'caption' in df else 'Caption'
-    if caption_col in df and not df[caption_col].dropna().empty:
-        # Filter for high-engagement posts (top 20% by engagement rate)
-        if 'engagement_rate' in df and not df['engagement_rate'].dropna().empty:
-            engagement_threshold = df['engagement_rate'].quantile(0.8)
-            trending_posts = df[df['engagement_rate'] >= engagement_threshold]
+    def show_follower_selection(self):
+        """High-value follower selection interface"""
+        st.markdown("### 👑 High-Value Follower Selection")
+        
+        # Check if preprocessed data exists
+        if not os.path.exists("outputs/preprocessed_data.csv"):
+            st.warning("⚠️ Please preprocess data first!")
+            return
+        
+        # Load data
+        df = pd.read_csv("outputs/preprocessed_data.csv")
+        st.info(f"📊 Working with {len(df)} records")
+        
+        # Selection parameters
+        col1, col2 = st.columns(2)
+        with col1:
+            top_percent = st.slider("Top Followers Percentage", 5, 25, 10)
+            clustering_method = st.selectbox(
+                "Clustering Method:",
+                ["K-Means", "DBSCAN", "Hierarchical"]
+            )
+        
+        with col2:
+            engagement_weight = st.slider("Engagement Weight", 0.0, 1.0, 0.7)
+            influence_weight = st.slider("Influence Weight", 0.0, 1.0, 0.3)
+        
+        # Selection button
+        if st.button("🎯 Select High-Value Followers", type="primary"):
+            with st.spinner("Identifying high-value followers..."):
+                try:
+                    high_value_followers = self.follower_selector.select_followers(
+                        df,
+                        top_percent=top_percent,
+                        method=clustering_method,
+                        engagement_weight=engagement_weight,
+                        influence_weight=influence_weight
+                    )
+                    
+                    # Save results
+                    import json
+                    with open("outputs/high_value_followers.json", "w") as f:
+                        json.dump(high_value_followers, f)
+                    
+                    st.success(f"✅ Selected {len(high_value_followers)} high-value followers!")
+                    
+                    # Show results
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("High-Value Followers", len(high_value_followers))
+                        st.metric("Selection Rate", f"{len(high_value_followers)/len(df)*100:.1f}%")
+                    
+                    with col2:
+                        if high_value_followers:
+                            sample_followers = list(high_value_followers.keys())[:5]
+                            st.write("**Sample Followers:**")
+                            for follower in sample_followers:
+                                st.write(f"- {follower}")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during selection: {str(e)}")
+        
+        # Show existing results if available
+        if os.path.exists("outputs/high_value_followers.json"):
+            with open("outputs/high_value_followers.json", "r") as f:
+                existing_followers = json.load(f)
+            
+            st.info(f"📊 Previously selected: {len(existing_followers)} followers")
+    
+    def show_sentiment_analysis(self):
+        """Sentiment analysis interface"""
+        st.markdown("### 🧠 Sentiment Analysis with BERT")
+        
+        # Check prerequisites
+        if not os.path.exists("outputs/preprocessed_data.csv"):
+            st.warning("⚠️ Please preprocess data first!")
+            return
+        
+        # BERT model selection
+        model_options = [
+            "distilbert-base-uncased",
+            "bert-base-uncased", 
+            "roberta-base",
+            "cardiffnlp/twitter-roberta-base-sentiment-latest"
+        ]
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_model = st.selectbox("Select BERT Model:", model_options)
+            batch_size = st.slider("Batch Size", 8, 64, 16)
+        
+        with col2:
+            max_length = st.slider("Max Sequence Length", 64, 512, 128)
+            use_gpu = st.checkbox("Use GPU (if available)", value=True)
+        
+        # Analysis button
+        if st.button("🧠 Analyze Sentiment", type="primary"):
+            with st.spinner(f"Running sentiment analysis with {selected_model}..."):
+                try:
+                    df = pd.read_csv("outputs/preprocessed_data.csv")
+                    
+                    sentiment_scores = self.sentiment_analyzer.analyze_sentiment(
+                        df,
+                        model_name=selected_model,
+                        batch_size=batch_size,
+                        max_length=max_length,
+                        use_gpu=use_gpu
+                    )
+                    
+                    # Save results
+                    import json
+                    with open("outputs/sentiment_scores.json", "w") as f:
+                        json.dump(sentiment_scores, f)
+                    
+                    st.success("✅ Sentiment analysis completed!")
+                    
+                    # Show results
+                    self.show_sentiment_results(sentiment_scores)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during sentiment analysis: {str(e)}")
+        
+        # Show existing results if available
+        if os.path.exists("outputs/sentiment_scores.json"):
+            with open("outputs/sentiment_scores.json", "r") as f:
+                existing_scores = json.load(f)
+            
+            st.info(f"📊 Previously analyzed: {len(existing_scores)} comments")
+            self.show_sentiment_results(existing_scores)
+    
+    def show_sentiment_results(self, sentiment_scores):
+        """Display sentiment analysis results"""
+        if not sentiment_scores:
+            return
+        
+        # Convert to DataFrame for visualization
+        sentiment_df = pd.DataFrame([
+            {"comment": k, **v} for k, v in sentiment_scores.items()
+        ])
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Sentiment distribution
+            sentiment_counts = sentiment_df['sentiment'].value_counts()
+            fig = px.pie(
+                values=sentiment_counts.values,
+                names=sentiment_counts.index,
+                title="Sentiment Distribution"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Confidence scores
+            fig = px.histogram(
+                sentiment_df, 
+                x='confidence',
+                title="Confidence Score Distribution",
+                nbins=20
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Sample results
+        with st.expander("📊 Sample Results"):
+            st.dataframe(sentiment_df.head(10))
+    
+    def show_model_training(self):
+        """Model training interface"""
+        st.markdown("### 🤖 Advanced ML Model Training")
+        
+        # Check prerequisites
+        prerequisites = [
+            ("Preprocessed Data", "outputs/preprocessed_data.csv"),
+            ("High-Value Followers", "outputs/high_value_followers.json"),
+            ("Sentiment Scores", "outputs/sentiment_scores.json")
+        ]
+        
+        missing = [name for name, path in prerequisites if not os.path.exists(path)]
+        if missing:
+            st.warning(f"⚠️ Missing: {', '.join(missing)}")
+            return
+        
+        # Model selection
+        st.markdown("#### 🎯 Model Selection")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            models_to_train = st.multiselect(
+                "Select Models to Train:",
+                ["Random Forest", "XGBoost", "LightGBM", "TabNet", "GNN", "BERT"],
+                default=["Random Forest", "XGBoost", "LightGBM"]
+            )
+        
+        with col2:
+            target_variable = st.selectbox(
+                "Target Variable:",
+                ["engagement_probability", "comment_likelihood", "like_probability"]
+            )
+        
+        # Training parameters
+        st.markdown("#### ⚙️ Training Parameters")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            test_size = st.slider("Test Size", 0.1, 0.4, 0.2)
+            random_state = st.number_input("Random State", value=42)
+        
+        with col2:
+            cross_validation = st.checkbox("Cross Validation", value=True)
+            cv_folds = st.slider("CV Folds", 3, 10, 5) if cross_validation else 5
+        
+        with col3:
+            optimize_hyperparams = st.checkbox("Hyperparameter Optimization", value=False)
+            n_trials = st.slider("Optimization Trials", 10, 100, 20) if optimize_hyperparams else 20
+        
+        # Training button
+        if st.button("🚀 Train Models", type="primary"):
+            with st.spinner("Training models... This may take several minutes"):
+                try:
+                    results = self.model_trainer.train_models(
+                        models=models_to_train,
+                        target=target_variable,
+                        test_size=test_size,
+                        random_state=random_state,
+                        cv_folds=cv_folds if cross_validation else None,
+                        optimize_hyperparams=optimize_hyperparams,
+                        n_trials=n_trials if optimize_hyperparams else None
+                    )
+                    
+                    st.success("✅ Model training completed!")
+                    
+                    # Show training results
+                    self.show_training_results(results)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during training: {str(e)}")
+        
+        # Show existing models if available
+        model_files = [
+            "outputs/rf_model.pkl", "outputs/xgb_model.pkl", 
+            "outputs/lgb_model.pkl", "outputs/tabnet_model.pt",
+            "outputs/gnn_model.pt", "outputs/bert_model.pt"
+        ]
+        
+        existing_models = [f for f in model_files if os.path.exists(f)]
+        if existing_models:
+            st.info(f"📊 Existing models: {len(existing_models)}")
+            for model in existing_models:
+                st.write(f"- {os.path.basename(model)}")
+    
+    def show_training_results(self, results):
+        """Display training results"""
+        if not results:
+            return
+        
+        # Training metrics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Models Trained", len(results))
+            if results:
+                best_model = max(results.items(), key=lambda x: x[1].get('f1_score', 0))
+                st.metric("Best Model", best_model[0])
+                st.metric("Best F1-Score", f"{best_model[1].get('f1_score', 0):.3f}")
+        
+        with col2:
+            # Training time comparison
+            if results:
+                training_times = {model: data.get('training_time', 0) for model, data in results.items()}
+                fig = px.bar(
+                    x=list(training_times.keys()),
+                    y=list(training_times.values()),
+                    title="Training Time Comparison (seconds)"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+    
+    def show_model_evaluation(self):
+        """Model evaluation interface"""
+        st.markdown("### 📈 Model Evaluation")
+        
+        # Check if models exist
+        model_files = [
+            "outputs/rf_model.pkl", "outputs/xgb_model.pkl", 
+            "outputs/lgb_model.pkl", "outputs/tabnet_model.pt",
+            "outputs/gnn_model.pt", "outputs/bert_model.pt"
+        ]
+        
+        existing_models = [f for f in model_files if os.path.exists(f)]
+        if not existing_models:
+            st.warning("⚠️ No trained models found! Please train models first.")
+            return
+        
+        # Evaluation metrics selection
+        metrics_to_show = st.multiselect(
+            "Select Evaluation Metrics:",
+            ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"],
+            default=["Accuracy", "F1-Score", "ROC-AUC"]
+        )
+        
+        # Evaluate button
+        if st.button("📊 Evaluate Models", type="primary"):
+            with st.spinner("Evaluating models..."):
+                try:
+                    evaluation_results = self.model_evaluator.evaluate_models(
+                        metrics=metrics_to_show
+                    )
+                    
+                    # Save results
+                    import json
+                    with open("outputs/metrics.json", "w") as f:
+                        json.dump(evaluation_results, f)
+                    
+                    st.success("✅ Model evaluation completed!")
+                    
+                    # Show evaluation results
+                    self.show_evaluation_results(evaluation_results)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during evaluation: {str(e)}")
+        
+        # Show existing results if available
+        if os.path.exists("outputs/metrics.json"):
+            with open("outputs/metrics.json", "r") as f:
+                existing_results = json.load(f)
+            
+            st.info("📊 Previous evaluation results:")
+            self.show_evaluation_results(existing_results)
+    
+    def show_evaluation_results(self, results):
+        """Display evaluation results"""
+        if not results:
+            return
+        
+        # Convert to DataFrame
+        eval_df = pd.DataFrame(results).T
+        
+        # Metrics comparison
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Bar chart of metrics
+            fig = px.bar(
+                eval_df.reset_index(),
+                x='index',
+                y=['Accuracy', 'F1-Score', 'ROC-AUC'],
+                title="Model Performance Comparison",
+                barmode='group'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Detailed metrics table
+            st.markdown("**Detailed Metrics:**")
+            st.dataframe(eval_df)
+        
+        # Best model identification
+        if 'F1-Score' in eval_df.columns:
+            best_model = eval_df['F1-Score'].idxmax()
+            best_score = eval_df.loc[best_model, 'F1-Score']
+            st.success(f"🏆 Best Model: {best_model} (F1-Score: {best_score:.3f})")
+    
+    def show_profile_generation(self):
+        """Profile generation interface"""
+        st.markdown("### 👤 Generate User Profiles")
+        
+        # Check prerequisites
+        prerequisites = [
+            ("High-Value Followers", "outputs/high_value_followers.json"),
+            ("Sentiment Scores", "outputs/sentiment_scores.json"),
+            ("Model Metrics", "outputs/metrics.json")
+        ]
+        
+        missing = [name for name, path in prerequisites if not os.path.exists(path)]
+        if missing:
+            st.warning(f"⚠️ Missing: {', '.join(missing)}")
+            return
+        
+        # Profile generation options
+        col1, col2 = st.columns(2)
+        with col1:
+            include_sentiment = st.checkbox("Include Sentiment Analysis", value=True)
+            include_content_prefs = st.checkbox("Include Content Preferences", value=True)
+        
+        with col2:
+            min_confidence = st.slider("Minimum Prediction Confidence", 0.5, 0.95, 0.7)
+            max_profiles = st.slider("Maximum Profiles to Generate", 10, 100, 50)
+        
+        # Generate button
+        if st.button("👤 Generate Profiles", type="primary"):
+            with st.spinner("Generating user profiles..."):
+                try:
+                    profiles = self.profile_generator.generate_profiles(
+                        include_sentiment=include_sentiment,
+                        include_content_prefs=include_content_prefs,
+                        min_confidence=min_confidence,
+                        max_profiles=max_profiles
+                    )
+                    
+                    # Save results
+                    import json
+                    with open("outputs/profiles.json", "w") as f:
+                        json.dump(profiles, f)
+                    
+                    # Generate guidelines
+                    guidelines = self.profile_generator.generate_guidelines(profiles)
+                    with open("outputs/guidelines.json", "w") as f:
+                        json.dump(guidelines, f)
+                    
+                    st.success(f"✅ Generated {len(profiles)} user profiles!")
+                    
+                    # Show profile results
+                    self.show_profile_results(profiles, guidelines)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during profile generation: {str(e)}")
+        
+        # Show existing results if available
+        if os.path.exists("outputs/profiles.json"):
+            with open("outputs/profiles.json", "r") as f:
+                existing_profiles = json.load(f)
+            with open("outputs/guidelines.json", "r") as f:
+                existing_guidelines = json.load(f)
+            
+            st.info(f"📊 Previously generated: {len(existing_profiles)} profiles")
+            self.show_profile_results(existing_profiles, existing_guidelines)
+    
+    def show_profile_results(self, profiles, guidelines):
+        """Display profile generation results"""
+        if not profiles:
+            return
+        
+        # Profile summary
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Total Profiles", len(profiles))
+            
+            # Sample profile
+            if profiles:
+                sample_user = list(profiles.keys())[0]
+                sample_profile = profiles[sample_user]
+                
+                st.markdown("**Sample Profile:**")
+                st.json(sample_profile)
+        
+        with col2:
+            # Content preferences distribution
+            if profiles:
+                content_prefs = []
+                for profile in profiles.values():
+                    if 'content_preferences' in profile:
+                        content_prefs.extend(profile['content_preferences'])
+                
+                if content_prefs:
+                    pref_counts = pd.Series(content_prefs).value_counts()
+                    fig = px.pie(
+                        values=pref_counts.values,
+                        names=pref_counts.index,
+                        title="Content Preference Distribution"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+        
+        # Guidelines
+        if guidelines:
+            st.markdown("### 📋 Content Strategy Guidelines")
+            for i, guideline in enumerate(guidelines[:5], 1):
+                st.markdown(f"**{i}.** {guideline}")
+    
+    def show_visualization(self):
+        """Visualization interface"""
+        st.markdown("### 📋 Results Visualization")
+        
+        # Check available outputs
+        available_outputs = {
+            "Preprocessed Data": "outputs/preprocessed_data.csv",
+            "High-Value Followers": "outputs/high_value_followers.json",
+            "Sentiment Scores": "outputs/sentiment_scores.json",
+            "Model Metrics": "outputs/metrics.json",
+            "User Profiles": "outputs/profiles.json",
+            "Guidelines": "outputs/guidelines.json"
+        }
+        
+        existing_outputs = {name: path for name, path in available_outputs.items() 
+                          if os.path.exists(path)}
+        
+        if not existing_outputs:
+            st.warning("⚠️ No outputs available for visualization!")
+            return
+        
+        # Visualization options
+        viz_type = st.selectbox(
+            "Select Visualization:",
+            ["Model Performance", "Engagement Profiles", "Sentiment Analysis", 
+             "Follower Distribution", "Content Preferences"]
+        )
+        
+        if viz_type == "Model Performance" and "Model Metrics" in existing_outputs:
+            self.show_model_performance_viz()
+        elif viz_type == "Engagement Profiles" and "User Profiles" in existing_outputs:
+            self.show_engagement_profiles_viz()
+        elif viz_type == "Sentiment Analysis" and "Sentiment Scores" in existing_outputs:
+            self.show_sentiment_analysis_viz()
+        elif viz_type == "Follower Distribution" and "High-Value Followers" in existing_outputs:
+            self.show_follower_distribution_viz()
+        elif viz_type == "Content Preferences" and "User Profiles" in existing_outputs:
+            self.show_content_preferences_viz()
         else:
-            # Fallback to top posts by likes
-            if 'likes' in df and len(df) > 100:
-                likes_threshold = df['likes'].quantile(0.8)
-                trending_posts = df[df['likes'] >= likes_threshold]
-            else:
-                trending_posts = df.head(100)  # Use sample
+            st.info(f"📊 {viz_type} visualization requires additional data processing.")
+    
+    def show_model_performance_viz(self):
+        """Show model performance visualizations"""
+        try:
+            with open("outputs/metrics.json", "r") as f:
+                metrics = json.load(f)
+            
+            # Performance comparison
+            metrics_df = pd.DataFrame(metrics).T
+            
+            # Multiple metrics comparison
+            fig = px.radar(
+                metrics_df.reset_index(),
+                r='F1-Score',
+                theta='index',
+                title="Model Performance Radar Chart"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Confusion matrices (if available)
+            st.markdown("#### 🔄 Model Comparison")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                # Accuracy comparison
+                fig = px.bar(
+                    metrics_df.reset_index(),
+                    x='index',
+                    y='Accuracy',
+                    title="Model Accuracy Comparison"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # F1-Score comparison
+                fig = px.bar(
+                    metrics_df.reset_index(),
+                    x='index',
+                    y='F1-Score',
+                    title="Model F1-Score Comparison"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"Error loading model metrics: {str(e)}")
+    
+    def show_engagement_profiles_viz(self):
+        """Show engagement profiles visualizations"""
+        try:
+            with open("outputs/profiles.json", "r") as f:
+                profiles = json.load(f)
+            
+            # Extract engagement probabilities
+            engagement_data = []
+            for user, profile in profiles.items():
+                if 'engagement_probability' in profile:
+                    engagement_data.append({
+                        'user': user,
+                        'engagement_prob': profile['engagement_probability'],
+                        'sentiment': profile.get('dominant_sentiment', 'neutral')
+                    })
+            
+            if engagement_data:
+                df = pd.DataFrame(engagement_data)
+                
+                # Engagement probability distribution
+                fig = px.histogram(
+                    df,
+                    x='engagement_prob',
+                    color='sentiment',
+                    title="Engagement Probability Distribution by Sentiment",
+                    nbins=20
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Top users by engagement
+                top_users = df.nlargest(10, 'engagement_prob')
+                fig = px.bar(
+                    top_users,
+                    x='user',
+                    y='engagement_prob',
+                    color='sentiment',
+                    title="Top 10 Users by Engagement Probability"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"Error loading profiles: {str(e)}")
+    
+    def show_sentiment_analysis_viz(self):
+        """Show sentiment analysis visualizations"""
+        try:
+            with open("outputs/sentiment_scores.json", "r") as f:
+                sentiment_data = json.load(f)
+            
+            # Convert to DataFrame
+            sentiment_df = pd.DataFrame([
+                {"comment": k, **v} for k, v in sentiment_data.items()
+            ])
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Sentiment distribution
+                sentiment_counts = sentiment_df['sentiment'].value_counts()
+                fig = px.pie(
+                    values=sentiment_counts.values,
+                    names=sentiment_counts.index,
+                    title="Overall Sentiment Distribution"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Confidence vs Sentiment
+                fig = px.box(
+                    sentiment_df,
+                    x='sentiment',
+                    y='confidence',
+                    title="Confidence Scores by Sentiment"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"Error loading sentiment data: {str(e)}")
+    
+    def show_follower_distribution_viz(self):
+        """Show follower distribution visualizations"""
+        try:
+            with open("outputs/high_value_followers.json", "r") as f:
+                followers = json.load(f)
+            
+            # Follower metrics
+            follower_data = []
+            for username, data in followers.items():
+                follower_data.append({
+                    'username': username,
+                    'engagement_score': data.get('engagement_score', 0),
+                    'influence_score': data.get('influence_score', 0),
+                    'total_score': data.get('total_score', 0)
+                })
+            
+            if follower_data:
+                df = pd.DataFrame(follower_data)
+                
+                # Scatter plot: Engagement vs Influence
+                fig = px.scatter(
+                    df,
+                    x='engagement_score',
+                    y='influence_score',
+                    size='total_score',
+                    hover_data=['username'],
+                    title="High-Value Followers: Engagement vs Influence"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Top followers
+                top_followers = df.nlargest(10, 'total_score')
+                fig = px.bar(
+                    top_followers,
+                    x='username',
+                    y='total_score',
+                    title="Top 10 High-Value Followers"
+                )
+                fig.update_xaxes(tickangle=45)
+                st.plotly_chart(fig, use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"Error loading follower data: {str(e)}")
+    
+    def show_content_preferences_viz(self):
+        """Show content preferences visualizations"""
+        try:
+            with open("outputs/profiles.json", "r") as f:
+                profiles = json.load(f)
+            
+            # Extract content preferences
+            content_data = []
+            for user, profile in profiles.items():
+                if 'content_preferences' in profile:
+                    for content_type in profile['content_preferences']:
+                        content_data.append({
+                            'user': user,
+                            'content_type': content_type,
+                            'engagement_prob': profile.get('engagement_probability', 0)
+                        })
+            
+            if content_data:
+                df = pd.DataFrame(content_data)
+                
+                # Content type distribution
+                content_counts = df['content_type'].value_counts()
+                fig = px.bar(
+                    x=content_counts.index,
+                    y=content_counts.values,
+                    title="Content Type Preferences Distribution"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Engagement by content type
+                avg_engagement = df.groupby('content_type')['engagement_prob'].mean().sort_values(ascending=False)
+                fig = px.bar(
+                    x=avg_engagement.index,
+                    y=avg_engagement.values,
+                    title="Average Engagement Probability by Content Type"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"Error loading content preferences: {str(e)}")
+    
+    def generate_sample_data(self):
+        """Generate sample Instagram data for testing"""
+        np.random.seed(42)
+        n_samples = 1000
         
-        if not trending_posts.empty:
-            # Sample for performance if dataset is large
-            if len(trending_posts) > 1000:
-                trending_posts = trending_posts.sample(n=1000)
-            
-            # Extract keywords from trending captions
-            all_trending_captions = ' '.join(trending_posts[caption_col].dropna().astype(str))
-            
-            # Clean and tokenize
-            cleaned_text = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', all_trending_captions.lower())
-            
-            # Ensure NLTK resources
-            try:
-                nltk.data.find('tokenizers/punkt')
-                nltk.data.find('corpora/stopwords')
-            except LookupError:
-                st.info("Downloading language resources...")
-                nltk.download('punkt', quiet=True)
-                nltk.download('stopwords', quiet=True)
-            
-            from nltk.corpus import stopwords
-            from nltk.tokenize import word_tokenize
-            
-            stop_words = set(stopwords.words('english'))
-            words = word_tokenize(cleaned_text)
-            keywords = [word for word in words if word.isalpha() and len(word) > 2 and word not in stop_words]
-            
-            # Get trending keywords
-            keyword_counts = Counter(keywords)
-            trending_keywords = [word for word, count in keyword_counts.most_common(15)]
-            
-            if trending_keywords:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("**🔥 Most Used Words in High-Engagement Posts:**")
-                    st.write(", ".join(trending_keywords[:8]))
-                
-                with col2:
-                    st.markdown("**💡 Content Strategy Insights:**")
-                    # Analyze keyword patterns
-                    emotion_words = [w for w in trending_keywords if w in ['love', 'happy', 'amazing', 'beautiful', 'awesome', 'incredible', 'perfect', 'wonderful', 'excited', 'grateful']]
-                    action_words = [w for w in trending_keywords if w in ['explore', 'discover', 'create', 'share', 'enjoy', 'experience', 'celebrate', 'achieve', 'inspire', 'transform']]
-                    
-                    if emotion_words:
-                        st.write(f"😊 **Emotion keywords:** {', '.join(emotion_words[:3])}")
-                    if action_words:
-                        st.write(f"⚡ **Action keywords:** {', '.join(action_words[:3])}")
-                
-                # Category-specific trending analysis
-                if 'Category' in df and not df['Category'].dropna().empty:
-                    st.markdown("**📊 Trending by Category:**")
-                    categories = df['Category'].value_counts().head(3).index.tolist()
-                    
-                    category_cols = st.columns(len(categories))
-                    for i, category in enumerate(categories):
-                        with category_cols[i]:
-                            cat_posts = trending_posts[trending_posts['Category'] == category]
-                            if not cat_posts.empty and len(cat_posts) >= 5:
-                                cat_captions = ' '.join(cat_posts[caption_col].dropna().astype(str))
-                                cat_cleaned = re.sub(r'#\w+|@\w+|http\S+|[^a-zA-Z\s]', ' ', cat_captions.lower())
-                                cat_words = word_tokenize(cat_cleaned)
-                                cat_keywords = [word for word in cat_words if word.isalpha() and len(word) > 2 and word not in stop_words]
-                                cat_top = [word for word, _ in Counter(cat_keywords).most_common(4)]
-                                
-                                st.write(f"**{category.title()}:**")
-                                st.caption(", ".join(cat_top))
-            else:
-                st.info("No trending keywords found.")
-    else:
-        st.info("No caption data available for trending analysis.")
+        # Generate sample data matching the required schema
+        data = {
+            'post_id': range(n_samples),
+            'owner_id': np.random.randint(1000, 9999, n_samples),
+            'likes': np.random.exponential(100, n_samples).astype(int),
+            'comments_count': np.random.exponential(20, n_samples).astype(int),
+            'comment_text': [f"Sample comment {i}" for i in range(n_samples)],
+            'comment_owner_username': [f"user_{i%200}" for i in range(n_samples)],
+            'comment_likes': np.random.exponential(5, n_samples).astype(int),
+            'media_type': np.random.choice(['photo', 'video', 'album'], n_samples),
+            'Category': np.random.choice(['fashion', 'travel', 'food', 'lifestyle', 'tech'], n_samples),
+            '#Followers': np.random.exponential(1000, n_samples).astype(int),
+        }
         
-except Exception as e:
-    st.warning("Trending keywords analysis unavailable.")
+        return pd.DataFrame(data)
 
-st.info("See logs/project.log for detailed logs and errors.")
+# Initialize and run the app
+if __name__ == "__main__":
+    app = InstagramEngagementApp()
+    app.main()
