@@ -12,6 +12,7 @@ from datetime import datetime
 import os
 import sys
 import json
+import joblib
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
@@ -24,6 +25,7 @@ from sentiment_analysis.bert_analyzer import BERTSentimentAnalyzer
 from models.model_trainer import ModelTrainer
 from evaluation.model_evaluator import ModelEvaluator
 from profiling.profile_generator import ProfileGenerator
+from ui.live_prediction import LivePredictionComponent
 
 # Configure page
 st.set_page_config(
@@ -74,6 +76,8 @@ class InstagramEngagementApp:
         self.model_trainer = ModelTrainer()
         self.model_evaluator = ModelEvaluator()
         self.profile_generator = ProfileGenerator()
+        # Initialize live prediction component with app instance
+        self.live_prediction = LivePredictionComponent(self)
         
     def main(self):
         """Main application interface"""
@@ -88,7 +92,7 @@ class InstagramEngagementApp:
             "Choose Pipeline:",
             ["🏠 Overview", "📊 Preprocess Data", "👑 Select High-Value Followers", 
              "🧠 Sentiment Analysis", "🤖 Train Models", "📈 Evaluate Models", 
-             "👤 Generate Profiles", "📋 Visualize Results"]
+             "👤 Generate Profiles", "📋 Visualize Results", "🔮 Live Predictions"]
         )
         
         # Pipeline status in sidebar
@@ -111,6 +115,8 @@ class InstagramEngagementApp:
             self.show_profile_generation()
         elif page == "📋 Visualize Results":
             self.show_visualization()
+        elif page == "🔮 Live Predictions":
+            self.show_live_predictions()
     
     def show_pipeline_status(self):
         """Show pipeline execution status"""
@@ -1123,6 +1129,14 @@ class InstagramEngagementApp:
                 
         except Exception as e:
             st.error(f"Error loading content preferences: {str(e)}")
+    
+    def show_live_predictions(self):
+        """Show live predictions interface"""
+        try:
+            self.live_prediction.show()
+        except Exception as e:
+            st.error(f"Error showing live predictions: {str(e)}")
+            st.error("Please ensure all required models and data files are available.")
     
     def generate_sample_data(self):
         """Generate sample Instagram data for testing"""
