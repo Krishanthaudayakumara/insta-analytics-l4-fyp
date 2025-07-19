@@ -10,7 +10,7 @@ logging.basicConfig(filename='process_data_posts.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 def extract_post_data(file_path):
-    """Extracts data from a .info file, handling missing data."""
+    """Extracts data from a .info file, handling missing data and engineering features."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             post_data = json.load(f)
@@ -24,12 +24,22 @@ def extract_post_data(file_path):
             'comments': [],
             'caption': "",
             'hashtags': [],
-            'location_id': post_data['location']['id'] if post_data.get('location') else None
+            'location_id': post_data['location']['id'] if post_data.get('location') else None,
+            # Feature engineering
+            'media_type': post_data.get('media_type', None),
+            'caption_length': 0,
+            'num_hashtags': 0,
+            'has_mention': False,
+            'has_url': False
         }
 
         if post_data.get('edge_media_to_caption') and post_data['edge_media_to_caption']['edges']:
             extracted['caption'] = post_data['edge_media_to_caption']['edges'][0]['node']['text']
             extracted['hashtags'] = [match.group(0)[1:] for match in re.finditer(r"#[\w-]+", extracted['caption'])]
+            extracted['caption_length'] = len(extracted['caption'])
+            extracted['num_hashtags'] = len(extracted['hashtags'])
+            extracted['has_mention'] = '@' in extracted['caption']
+            extracted['has_url'] = 'http' in extracted['caption']
 
         if post_data.get('edge_media_to_parent_comment') and post_data['edge_media_to_parent_comment']['edges']:
             for comment in post_data['edge_media_to_parent_comment']['edges']:

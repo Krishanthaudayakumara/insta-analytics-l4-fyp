@@ -1,0 +1,90 @@
+nohup: ignoring input
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8501
+  Network URL: http://192.168.53.33:8501
+  External URL: http://103.21.166.9:8501
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but LinearRegression was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but Ridge was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but LinearRegression was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but Ridge was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+/home/krishantha/.local/lib/python3.10/site-packages/sklearn/utils/validation.py:2739: UserWarning:
+
+X does not have valid feature names, but RandomForestRegressor was fitted with feature names
+
+2025-06-01 18:17:13.654 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.685 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.685 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.685 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.686 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.686 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.687 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.687 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.687 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.687 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.687 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.688 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+2025-06-01 18:17:13.688 Received event for non-watched file: /home/krishantha/Github/fyp-l4/app.py
+  Stopping...

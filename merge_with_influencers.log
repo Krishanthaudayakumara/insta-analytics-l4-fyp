@@ -8,3 +8,33 @@
 2025-02-22 23:24:25,389 - INFO - Loaded and cleaned influencers data: 33935 rows
 2025-02-22 23:24:25,440 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 19)
 2025-02-22 23:24:26,755 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
+2025-05-18 15:51:52,622 - INFO - Starting merge process
+2025-05-18 15:51:54,717 - INFO - Loaded posts data: 49525 rows
+2025-05-18 15:51:54,717 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-05-18 15:51:54,837 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 26)
+2025-05-18 15:51:57,884 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
+2025-05-31 23:43:35,624 - INFO - Starting merge process
+2025-05-31 23:43:37,349 - INFO - Loaded posts data: 49525 rows
+2025-05-31 23:43:37,349 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-05-31 23:43:37,459 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 26)
+2025-05-31 23:43:41,043 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
+2025-06-01 15:35:48,206 - INFO - Starting merge process
+2025-06-01 15:35:49,953 - INFO - Loaded posts data: 49525 rows
+2025-06-01 15:35:49,953 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-06-01 15:35:50,048 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 26)
+2025-06-01 15:35:52,763 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
+2025-06-01 15:39:45,340 - INFO - Starting merge process
+2025-06-01 15:39:47,615 - INFO - Loaded posts data: 49525 rows
+2025-06-01 15:39:47,615 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-06-01 15:39:47,715 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 26)
+2025-06-01 15:39:50,700 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
+2025-06-01 15:44:33,341 - INFO - Starting merge process
+2025-06-01 15:44:34,998 - INFO - Loaded posts data: 49525 rows
+2025-06-01 15:44:34,998 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-06-01 15:44:35,078 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 26)
+2025-06-01 15:44:38,265 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
+2025-06-01 15:51:43,921 - INFO - Starting merge process
+2025-06-01 15:51:45,661 - INFO - Loaded posts data: 49525 rows
+2025-06-01 15:51:45,661 - INFO - Loaded and cleaned influencers data: 33935 rows
+2025-06-01 15:51:45,751 - INFO - Merged data successfully. Merged DataFrame shape: (49525, 26)
+2025-06-01 15:51:48,663 - INFO - Saved merged data to /home/krishantha/Github/fyp-l4/data/processed_data/merged_user_post_data.csv
