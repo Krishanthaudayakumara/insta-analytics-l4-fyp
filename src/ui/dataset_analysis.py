@@ -7,6 +7,8 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import sys
+import importlib.util
 from .base import BaseUIComponent
 
 
@@ -503,18 +505,210 @@ class DatasetAnalysisComponent(BaseUIComponent):
                     st.metric("Analysis Date", timestamp.split('T')[0] if 'T' in str(timestamp) else str(timestamp))
                 
                 with col3:
-                    if st.button("🔄 Load Previous Results"):
-                        # Import visualizer
-                        try:
-                            from ..follower_selection.network_visualizer import FollowerNetworkVisualizer
-                            visualizer = FollowerNetworkVisualizer()
-                            self._display_analysis_results(previous_results, visualizer)
-                        except Exception as e:
-                            # Fallback to simple display
-                            st.warning("⚠️ Full visualization unavailable, showing simplified results")
-                            self._display_simple_analysis_results(previous_results)
+                    # Add toggle for interactive mode
+                    show_interactive = st.checkbox("🎨 Interactive Visualizations", 
+                                                 help="Load previous results with interactive controls")
+                
+                if show_interactive:
+                    # Show interactive visualizations
+                    self._show_interactive_visualizations(previous_results)
+                elif st.button("🔄 Load Previous Results"):
+                    # Import visualizer
+                    try:
+                        from follower_selection.network_visualizer import FollowerNetworkVisualizer
+                        visualizer = FollowerNetworkVisualizer()
+                        self._display_analysis_results(previous_results, visualizer)
+                    except Exception as e:
+                        # Fallback to simple display
+                        st.warning("⚠️ Full visualization unavailable, showing simplified results")
+                        self._display_simple_analysis_results(previous_results)
                             
             except Exception as e:
                 st.warning(f"⚠️ Error loading previous analysis: {str(e)}")
         else:
             st.info("ℹ️ No previous dataset analysis found. Run a new analysis to see results.")
+    
+    def _show_interactive_visualizations(self, analysis_results):
+        """Show interactive visualizations with parameter controls that persist across changes"""
+        
+        # Try to import visualizer
+        try:
+            from follower_selection.network_visualizer import FollowerNetworkVisualizer
+            visualizer = FollowerNetworkVisualizer()
+        except ImportError:
+            st.error("❌ Network visualizer not available. Please check the installation.")
+            return
+        
+        st.markdown("#### 🎨 Interactive Analysis Dashboard")
+        
+        # Show summary metrics first
+        metadata = analysis_results['metadata']
+        insights = analysis_results['insights']
+        cross_analysis = analysis_results['cross_account_analysis']
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "Accounts Analyzed",
+                metadata['total_accounts_analyzed'],
+                f"of {metadata['total_accounts_in_dataset']} total"
+            )
+        
+        with col2:
+            st.metric(
+                "Total High-Value Followers",
+                insights['summary_statistics']['total_high_value_followers']
+            )
+        
+        with col3:
+            st.metric(
+                "Power Followers",
+                len(cross_analysis['multi_account_followers']),
+                "Multi-account valuable"
+            )
+        
+        with col4:
+            cross_pollination = cross_analysis['network_stats']['cross_pollination_rate']
+            st.metric(
+                "Cross-Pollination Rate",
+                f"{cross_pollination:.1%}",
+                "Shared high-value followers"
+            )
+        
+        # Interactive visualization controls
+        st.markdown("#### 🕸️ Interactive Network Visualization")
+        
+        # Visualization controls that persist across widget changes
+        col1, col2 = st.columns(2)
+        with col1:
+            layout = st.selectbox(
+                "Network Layout:",
+                ["spring", "circular", "kamada_kawai"],
+                key="network_layout_selector",
+                help="Choose how nodes are arranged in the network"
+            )
+        with col2:
+            node_size = st.slider(
+                "Node Size Factor",
+                0.5, 2.0, 1.0,
+                key="node_size_slider",
+                help="Adjust the size of nodes in the network"
+            )
+        
+        # Create and display network graph with current parameters
+        try:
+            with st.spinner(f"Creating {layout} network layout..."):
+                network_fig = visualizer.create_network_graph(
+                    analysis_results, 
+                    layout=layout, 
+                    node_size_factor=node_size
+                )
+                st.plotly_chart(network_fig, use_container_width=True, key=f"network_viz_{layout}_{node_size}")
+                
+                # Network insights
+                with st.expander("🔍 Network Analysis Details"):
+                    st.write(f"**Layout:** {layout.title()}")
+                    st.write(f"**Node Size Factor:** {node_size}x")
+                    st.write(f"**Total Nodes:** {len(analysis_results['account_results']) + sum(len(data['high_value_followers']) for data in analysis_results['account_results'].values())}")
+                    st.write(f"**Account Nodes:** {len(analysis_results['account_results'])}")
+                    st.write(f"**Follower Nodes:** {sum(len(data['high_value_followers']) for data in analysis_results['account_results'].values())}")
+                    st.write(f"**Power Followers:** {len(cross_analysis['multi_account_followers'])}")
+                    
+        except Exception as e:
+            st.error(f"❌ Error creating network visualization: {str(e)}")
+            st.info("💡 Try selecting a different layout or adjusting the node size factor.")
+        
+        # Additional interactive visualizations
+        st.markdown("#### 📈 Additional Analysis")
+        
+        # Tabs for different visualizations
+        tab1, tab2, tab3 = st.tabs(["🔥 Similarity Heatmap", "📊 Insights Dashboard", "🏆 Top Performers"])
+        
+        with tab1:
+            try:
+                similarity_fig = visualizer.create_account_similarity_heatmap(analysis_results)
+                st.plotly_chart(similarity_fig, use_container_width=True, key="similarity_heatmap")
+                
+                st.markdown("**Interpretation:**")
+                st.write("- Darker colors indicate higher similarity between accounts")
+                st.write("- Similar accounts share many high-value followers")
+                st.write("- Identify collaboration opportunities and account clusters")
+                
+            except Exception as e:
+                st.error(f"Error creating similarity heatmap: {str(e)}")
+        
+        with tab2:
+            try:
+                dashboard_fig = visualizer.create_insights_dashboard(analysis_results)
+                st.plotly_chart(dashboard_fig, use_container_width=True, key="insights_dashboard")
+                
+                st.markdown("**Dashboard Insights:**")
+                st.write("- **Top Left:** Distribution of high-value followers across accounts")
+                st.write("- **Top Right:** Power followers who are valuable to multiple accounts")
+                st.write("- **Bottom Left:** Statistical distribution of follower counts")
+                st.write("- **Bottom Right:** Engagement vs Influence scatter plot")
+                
+            except Exception as e:
+                st.error(f"Error creating insights dashboard: {str(e)}")
+        
+        with tab3:
+            try:
+                performers_fig = visualizer.create_top_performers_chart(analysis_results)
+                st.plotly_chart(performers_fig, use_container_width=True, key="top_performers")
+                
+                # Show detailed top performers data
+                top_performers = cross_analysis['top_performers']
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**🏅 Top Accounts by High-Value Followers:**")
+                    for i, (account, count) in enumerate(top_performers['top_accounts_by_count'][:5]):
+                        st.write(f"{i+1}. @{account}: {count} followers")
+                
+                with col2:
+                    st.markdown("**⭐ Top Followers by Average Score:**")
+                    for i, (follower, score) in enumerate(top_performers['top_followers_by_score'][:5]):
+                        st.write(f"{i+1}. @{follower}: {score:.3f}")
+                
+            except Exception as e:
+                st.error(f"Error creating top performers chart: {str(e)}")
+        
+        # Insights and recommendations section
+        st.markdown("#### 💡 Key Insights & Recommendations")
+        
+        recommendations = insights['recommendations']
+        if recommendations:
+            for i, rec in enumerate(recommendations):
+                with st.expander(f"{rec['title']} ({rec['type'].replace('_', ' ').title()})"):
+                    st.write(f"**Description:** {rec['description']}")
+                    st.write(f"**Recommended Action:** {rec['action']}")
+        else:
+            st.info("No specific recommendations generated for this dataset.")
+        
+        # Download options
+        st.markdown("#### 📥 Download Results")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Download analysis results as JSON
+            analysis_json = json.dumps(analysis_results, indent=2, default=str)
+            st.download_button(
+                label="📄 Download Analysis Results (JSON)",
+                data=analysis_json,
+                file_name=f"dataset_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
+        
+        with col2:
+            # Save visualizations button
+            if st.button("💾 Save All Visualizations", key="save_viz_interactive"):
+                try:
+                    saved_files = visualizer.save_visualizations(analysis_results)
+                    st.success(f"✅ Saved {len(saved_files)} visualization files to outputs/visualizations/")
+                    for file_path in saved_files:
+                        st.write(f"- {os.path.basename(file_path)}")
+                except Exception as e:
+                    st.error(f"❌ Error saving visualizations: {str(e)}")
