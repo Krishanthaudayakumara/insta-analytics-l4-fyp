@@ -13,9 +13,9 @@ def main():
     parser = argparse.ArgumentParser(description='Launch Instagram Engagement Prediction System')
     parser.add_argument(
         '--app', 
-        choices=['main', 'modular'], 
+        choices=['main', 'legacy'], 
         default='main',
-        help='Choose which app to launch: main (enhanced) or modular (clean architecture)'
+        help='Choose which app to launch: main (modular) or legacy (enhanced monolithic)'
     )
     parser.add_argument(
         '--port', 
@@ -33,10 +33,10 @@ def main():
     # Choose app file
     if args.app == 'main':
         app_file = 'app.py'
-        print("🚀 Launching Enhanced Main Application with Live Predictions...")
+        print("🚀 Launching Main Modular Application (Clean Architecture)...")
     else:
-        app_file = 'app_clean_modular.py'
-        print("🏗️ Launching Clean Modular Application...")
+        app_file = 'app_legacy.py'
+        print("🏗️ Launching Legacy Enhanced Application (Monolithic)...")
     
     # Launch command
     cmd = [

@@ -33,9 +33,11 @@
 │   ├── sentiment_analysis/       # BERT sentiment analysis
 │   ├── models/                   # ML model implementations
 │   ├── evaluation/               # Model evaluation
-│   └── profiling/                # Profile generation
+│   ├── profiling/                # Profile generation
+│   └── ui/                       # Modular UI components
 ├── outputs/                      # Generated outputs
-├── app.py                        # Streamlit main application
+├── app.py                        # Main modular Streamlit application
+├── app_legacy.py                 # Legacy enhanced application
 └── requirements.txt              # Dependencies
 ```
 
@@ -54,7 +56,15 @@ pip install -r requirements.txt
 
 2. **Run the Streamlit application:**
 ```bash
+# Main modular application (RECOMMENDED)
 streamlit run app.py
+
+# Alternative: Legacy enhanced application
+streamlit run app_legacy.py
+
+# Using launcher script with options
+python scripts/launch_app.py --app main    # Launches modular app
+python scripts/launch_app.py --app legacy  # Launches legacy app
 ```
 
 3. **Access the application:**

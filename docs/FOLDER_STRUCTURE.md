@@ -7,8 +7,8 @@ This document outlines the clean, organized folder structure of the Instagram En
 ### 🏠 Root Directory
 ```
 fyp-l4/
-├── app.py                    # Main enhanced application with live predictions
-├── app_clean_modular.py      # Clean modular application showcasing component architecture
+├── app.py                    # Main clean modular application (RECOMMENDED)
+├── app_legacy.py            # Legacy enhanced application with live predictions  
 ├── requirements.txt          # Python dependencies
 ├── .gitignore               # Git ignore file
 └── venv/                    # Virtual environment (local development)
@@ -157,11 +157,15 @@ scripts/
 
 ### **Running Applications**
 ```bash
-# Enhanced main application
+# Main modular application (RECOMMENDED)
 streamlit run app.py
 
-# Clean modular application
-streamlit run app_clean_modular.py
+# Legacy enhanced application  
+streamlit run app_legacy.py
+
+# Using launcher script
+python scripts/launch_app.py --app main    # Launches app.py (modular)
+python scripts/launch_app.py --app legacy  # Launches app_legacy.py
 ```
 
 ### **Testing**
