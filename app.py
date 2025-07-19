@@ -31,6 +31,7 @@ from ui.base import BaseUIComponent
 from ui.overview import OverviewComponent
 from ui.preprocessing import PreprocessingComponent
 from ui.follower_selection import FollowerSelectionComponent
+from ui.dataset_analysis import DatasetAnalysisComponent
 from ui.sentiment_analysis import SentimentAnalysisComponent
 from ui.model_training import ModelTrainingComponent
 from ui.model_evaluation import ModelEvaluationComponent
@@ -103,6 +104,7 @@ class ModularInstagramEngagementApp:
         self.overview = OverviewComponent(self)
         self.preprocessing = PreprocessingComponent(self)
         self.follower_selection = FollowerSelectionComponent(self)
+        self.dataset_analysis = DatasetAnalysisComponent(self)
         self.sentiment_analysis = SentimentAnalysisComponent(self)
         self.model_training = ModelTrainingComponent(self)
         self.model_evaluation = ModelEvaluationComponent(self)
@@ -115,6 +117,7 @@ class ModularInstagramEngagementApp:
             "🏠 Overview": self.overview,
             "🔧 Data Preprocessing": self.preprocessing,
             "👑 Select High-Value Followers": self.follower_selection,
+            "🌐 Dataset-Wide Analysis": self.dataset_analysis,
             "🧠 Sentiment Analysis": self.sentiment_analysis,
             "🤖 Train Models": self.model_training,
             "📈 Evaluate Models": self.model_evaluation,
@@ -233,7 +236,8 @@ class ModularInstagramEngagementApp:
             component_descriptions = {
                 "🏠 Overview": "System overview and architecture visualization",
                 "🔧 Data Preprocessing": "Data cleaning and preparation pipeline",
-                "👑 Select High-Value Followers": "Identify and select valuable followers",
+                "👑 Select High-Value Followers": "Identify and select valuable followers for specific accounts",
+                "🌐 Dataset-Wide Analysis": "Comprehensive analysis across all accounts with network visualizations",
                 "🧠 Sentiment Analysis": "Analyze sentiment in comments and interactions",
                 "🤖 Train Models": "Train machine learning models for predictions",
                 "📈 Evaluate Models": "Evaluate and compare model performance",

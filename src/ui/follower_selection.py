@@ -14,8 +14,22 @@ class FollowerSelectionComponent(BaseUIComponent):
     """High-value follower selection component"""
     
     def show(self):
-        """Show high-value follower selection"""
-        st.markdown("### 👑 High-Value Follower Selection")
+        """Show high-value follower selection with tabs for different analysis types"""
+        st.markdown("### 👑 High-Value Follower Selection & Analysis")
+        
+        # Create tabs for different analysis types
+        tab1, tab2 = st.tabs(["🎯 Account-Specific Analysis", "🌐 Dataset-Wide Analysis"])
+        
+        with tab1:
+            self._show_account_specific_analysis()
+        
+        with tab2:
+            self._show_dataset_wide_analysis()
+    
+    def _show_account_specific_analysis(self):
+        """Show the original account-specific follower selection"""
+        st.markdown("#### 🎯 Account-Specific High-Value Follower Selection")
+        st.markdown("*Select high-value followers for a specific Instagram account*")
         
         # Check if preprocessed data exists
         if not os.path.exists("outputs/preprocessed_data.csv"):
@@ -212,3 +226,17 @@ class FollowerSelectionComponent(BaseUIComponent):
                 st.warning(f"⚠️ Error loading general results: {str(e)}")
         else:
             st.info(f"ℹ️ No previous results found for @{selected_username}")
+    
+    def _show_dataset_wide_analysis(self):
+        """Show dataset-wide analysis using the new component"""
+        try:
+            from .dataset_analysis import DatasetAnalysisComponent
+            
+            # Create and show the dataset analysis component
+            dataset_component = DatasetAnalysisComponent(self.app)
+            dataset_component.show()
+            
+        except ImportError:
+            st.error("❌ Dataset analysis module not available. Please check the installation.")
+        except Exception as e:
+            st.error(f"❌ Error loading dataset analysis: {str(e)}")

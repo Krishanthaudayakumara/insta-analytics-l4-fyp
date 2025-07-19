@@ -20,13 +20,25 @@ class BaseUIComponent:
     
     def __init__(self, app_instance):
         self.app = app_instance
-        self.data_processor = app_instance.data_processor
-        self.clustered_data_processor = app_instance.clustered_data_processor
-        self.follower_selector = app_instance.follower_selector
-        self.sentiment_analyzer = app_instance.sentiment_analyzer
-        self.model_trainer = app_instance.model_trainer
-        self.model_evaluator = app_instance.model_evaluator
-        self.profile_generator = app_instance.profile_generator
+        
+        # Handle None app_instance gracefully
+        if app_instance is not None:
+            self.data_processor = app_instance.data_processor
+            self.clustered_data_processor = app_instance.clustered_data_processor
+            self.follower_selector = app_instance.follower_selector
+            self.sentiment_analyzer = app_instance.sentiment_analyzer
+            self.model_trainer = app_instance.model_trainer
+            self.model_evaluator = app_instance.model_evaluator
+            self.profile_generator = app_instance.profile_generator
+        else:
+            # Initialize with None for testing/standalone mode
+            self.data_processor = None
+            self.clustered_data_processor = None
+            self.follower_selector = None
+            self.sentiment_analyzer = None
+            self.model_trainer = None
+            self.model_evaluator = None
+            self.profile_generator = None
     
     def show_prerequisites_warning(self, prerequisites):
         """Show warning for missing prerequisites"""
