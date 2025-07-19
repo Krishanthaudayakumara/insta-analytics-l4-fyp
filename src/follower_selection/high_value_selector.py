@@ -25,7 +25,7 @@ class HighValueFollowerSelector:
     def select_followers(self, df, top_percent=10, method="K-Means", 
                         engagement_weight=0.7, influence_weight=0.3):
         """
-        Select high-value followers using clustering algorithms
+        Select high-value followers using clustering algorithms (legacy method)
         
         Args:
             df: Preprocessed Instagram dataset
@@ -37,7 +37,7 @@ class HighValueFollowerSelector:
         Returns:
             Dictionary of high-value followers with their scores
         """
-        self.logger.info(f"Selecting top {top_percent}% followers using {method}")
+        self.logger.info(f"Selecting top {top_percent}% followers using {method} (legacy mode)")
         
         # Prepare features for clustering
         cluster_features = self._prepare_clustering_features(df)
@@ -67,6 +67,109 @@ class HighValueFollowerSelector:
         
         self.logger.info(f"Selected {len(high_value_followers)} high-value followers")
         return high_value_followers
+
+    def select_high_value_followers(self, data, owner_id, top_percentage=10, 
+                                  clustering_method="K-Means", 
+                                  engagement_weight=0.7, influence_weight=0.3):
+        """
+        Select high-value followers for a specific Instagram account
+        
+        Args:
+            data: Full dataset (DataFrame)
+            owner_id: Specific Instagram account owner ID to filter by
+            top_percentage: Top X% of followers to select (5-25)
+            clustering_method: 'K-Means', 'DBSCAN', or 'Hierarchical'
+            engagement_weight: Weight for engagement features (0.0-1.0)
+            influence_weight: Weight for influence features (0.0-1.0)
+            
+        Returns:
+            Dictionary of high-value followers for the specified owner_id
+        """
+        try:
+            self.logger.info(f"Selecting top {top_percentage}% followers for owner_id: {owner_id}")
+            
+            # Validate inputs
+            if not isinstance(data, pd.DataFrame):
+                raise ValueError("Data must be a pandas DataFrame")
+            
+            if 'owner_id' not in data.columns:
+                raise KeyError("Dataset missing 'owner_id' column. Please check your data preprocessing.")
+            
+            if 'comment_owner_username' not in data.columns:
+                raise KeyError("Dataset missing 'comment_owner_username' column. Please check your data preprocessing.")
+            
+            # Convert owner_id to match dataset type (handle string/int conversion)
+            original_owner_id = owner_id
+            try:
+                # Try to convert to int if it's a string of digits
+                if isinstance(owner_id, str) and owner_id.isdigit():
+                    owner_id = int(owner_id)
+                elif isinstance(owner_id, (int, float)):
+                    owner_id = int(owner_id)
+            except (ValueError, TypeError):
+                pass  # Keep original owner_id
+            
+            # Filter dataset by specific owner_id
+            account_data = data[data['owner_id'] == owner_id].copy()
+            
+            if account_data.empty:
+                # Try the original owner_id if conversion didn't work
+                account_data = data[data['owner_id'] == original_owner_id].copy()
+                
+            if account_data.empty:
+                available_ids = data['owner_id'].unique()
+                self.logger.error(f"Data type comparison issue - owner_id: {original_owner_id} (type: {type(original_owner_id)}), converted: {owner_id} (type: {type(owner_id)})")
+                self.logger.error(f"Sample dataset owner_ids: {available_ids[:5]} (types: {[type(x) for x in available_ids[:5]]})")
+                raise ValueError(f"No data found for owner_id: {original_owner_id} (tried both {original_owner_id} and {owner_id}). Available owner_ids: {available_ids}")
+            
+            self.logger.info(f"Filtered data: {len(account_data)} records for owner {owner_id}")
+            
+            # Check if we have enough data for clustering
+            unique_users = account_data['comment_owner_username'].nunique()
+            if unique_users < 2:
+                self.logger.warning(f"Only {unique_users} unique followers found for owner {owner_id}. Returning all followers.")
+                # Return all followers if too few for clustering
+                return self._handle_insufficient_data(account_data, owner_id)
+            
+            # Prepare features for clustering (account-specific)
+            cluster_features = self._prepare_clustering_features(account_data)
+            
+            # Apply selected clustering method
+            if clustering_method == "K-Means":
+                cluster_labels = self._apply_kmeans(cluster_features)
+            elif clustering_method == "DBSCAN":
+                cluster_labels = self._apply_dbscan(cluster_features)
+            elif clustering_method == "Hierarchical":
+                cluster_labels = self._apply_hierarchical(cluster_features)
+            else:
+                raise ValueError(f"Unknown clustering method: {clustering_method}")
+            
+            # Calculate engagement and influence scores (account-specific)
+            user_scores = self._calculate_user_scores(
+                account_data, engagement_weight, influence_weight
+            )
+            
+            # Add cluster information
+            user_scores['cluster'] = cluster_labels
+            user_scores['owner_id'] = owner_id  # Track which account these followers belong to
+            
+            # Select high-value followers
+            high_value_followers = self._select_top_followers(
+                user_scores, top_percentage
+            )
+            
+            # Save results with account-specific naming
+            self._save_account_specific_results(
+                high_value_followers, owner_id, account_data, top_percentage, 
+                clustering_method, engagement_weight, influence_weight
+            )
+            
+            self.logger.info(f"Selected {len(high_value_followers)} high-value followers for {owner_id}")
+            return high_value_followers
+            
+        except Exception as e:
+            self.logger.error(f"Error in follower selection for owner {owner_id}: {str(e)}")
+            raise
     
     def _prepare_clustering_features(self, df):
         """Prepare features for clustering"""
@@ -311,3 +414,108 @@ class HighValueFollowerSelector:
             self.logger.warning("Matplotlib not available for visualization")
         except Exception as e:
             self.logger.error(f"Error creating visualization: {str(e)}")
+    
+    def _handle_insufficient_data(self, account_data, owner_id):
+        """Handle cases where there's insufficient data for clustering"""
+        self.logger.info(f"Handling insufficient data for owner {owner_id}")
+        
+        # Calculate basic scores for all users
+        user_metrics = account_data.groupby('comment_owner_username').agg({
+            'comment_likes': ['mean', 'sum'],
+            'engagement_frequency': 'first',
+            'influence_score': 'first',
+            '#Followers': 'first'
+        }).reset_index()
+        
+        # Flatten column names
+        user_metrics.columns = [
+            'username', 'avg_comment_likes', 'total_comment_likes',
+            'engagement_frequency', 'influence_score', 'followers'
+        ]
+        
+        # Fill missing values
+        user_metrics = user_metrics.fillna(0)
+        
+        # Create simple scoring
+        high_value_followers = {}
+        for _, row in user_metrics.iterrows():
+            high_value_followers[row['username']] = {
+                'engagement_score': float(row['avg_comment_likes']) / 100.0,  # Normalize
+                'influence_score': float(row['influence_score']),
+                'total_score': float(row['avg_comment_likes']) / 100.0 + float(row['influence_score']),
+                'followers': int(row['followers']),
+                'cluster': 0,  # Single cluster
+                'avg_comment_likes': float(row['avg_comment_likes']),
+                'engagement_frequency': float(row['engagement_frequency'])
+            }
+        
+        return high_value_followers
+
+    def _save_account_specific_results(self, high_value_followers, owner_id, account_data,
+                                     top_percentage, clustering_method, 
+                                     engagement_weight, influence_weight):
+        """Save results with account-specific metadata"""
+        # Get username for this owner_id from the account data
+        username = "unknown_user"
+        try:
+            if 'username' in account_data.columns and len(account_data) > 0:
+                username = account_data['username'].iloc[0]
+            else:
+                username = f"user_{owner_id}"
+        except:
+            username = f"user_{owner_id}"
+            
+        results = {
+            "owner_id": str(owner_id),
+            "username": username,
+            "selection_metadata": {
+                "top_percentage": top_percentage,
+                "clustering_method": clustering_method,
+                "engagement_weight": engagement_weight,
+                "influence_weight": influence_weight,
+                "total_selected": len(high_value_followers),
+                "timestamp": pd.Timestamp.now().isoformat()
+            },
+            "high_value_followers": high_value_followers
+        }
+        
+        # Save account-specific file
+        account_output_path = f"outputs/high_value_followers_{owner_id}.json"
+        with open(account_output_path, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        # Also save to general location for backward compatibility
+        with open("outputs/high_value_followers.json", 'w') as f:
+            json.dump(high_value_followers, f, indent=2)
+        
+        self.logger.info(f"Results saved to {account_output_path} and outputs/high_value_followers.json")
+
+    def get_available_accounts(self, data):
+        """Get list of available owner_ids in the dataset with usernames"""
+        if 'owner_id' not in data.columns:
+            raise KeyError("Dataset missing 'owner_id' column")
+        
+        if 'username' not in data.columns:
+            raise KeyError("Dataset missing 'username' column")
+        
+        accounts = data['owner_id'].unique()
+        account_stats = []
+        
+        for account in accounts:
+            account_data = data[data['owner_id'] == account]
+            followers_count = account_data['comment_owner_username'].nunique()
+            interactions_count = len(account_data)
+            
+            # Get the username for this account (should be consistent for same owner_id)
+            username = account_data['username'].iloc[0] if len(account_data) > 0 else f"user_{account}"
+            
+            account_stats.append({
+                'owner_id': account,
+                'username': username,
+                'unique_followers': followers_count,
+                'total_interactions': interactions_count
+            })
+        
+        # Sort by followers count for better UX
+        account_stats.sort(key=lambda x: x['unique_followers'], reverse=True)
+        return account_stats
