@@ -268,19 +268,14 @@ class SentimentAnalysisComponent(BaseUIComponent):
                         
                     processed_data.append({
                         "comment_key": str(k)[:50],  # Truncate long keys
-                        "comment_owner_username": str(v.get("comment_owner_username", "unknown"))[:30],
-                        "post_owner_username": str(v.get("post_owner_username", "unknown"))[:30],  # Add post owner
+                        "username": str(v.get("comment_owner_username", "unknown"))[:30],  # Truncate long usernames
                         "comment_text": str(v.get("comment_text", ""))[:150],  # Truncate long comments for display
-                        "comment_full_text": str(v.get("comment_full_text", v.get("comment_text", ""))),  # Keep full text
                         "post_id": str(v.get("post_id", ""))[:20],
                         "sentiment": str(v.get("sentiment", "neutral")),
                         "confidence": float(v.get("confidence", 0.0)),
                         "positive": float(v.get("positive", 0.0)),
                         "negative": float(v.get("negative", 0.0)),
-                        "neutral": float(v.get("neutral", 0.0)),
-                        "comment_likes": int(v.get("comment_likes", 0)),
-                        "post_likes": int(v.get("post_likes", 0)),
-                        "engagement_rate": float(v.get("engagement_rate", 0.0))
+                        "neutral": float(v.get("neutral", 0.0))
                     })
                 except (ValueError, TypeError, KeyError) as e:
                     skipped_count += 1
@@ -318,7 +313,7 @@ class SentimentAnalysisComponent(BaseUIComponent):
             st.metric("High Confidence", f"{high_confidence:,} ({high_confidence/len(sentiment_df)*100:.1f}%)")
         
         # Create tabs for different visualizations
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["🥧 Distribution", "📊 Confidence", "👤 By Post Owner", "💬 By Comment User", "📝 Sample Comments"])
+        tab1, tab2, tab3, tab4 = st.tabs(["🥧 Distribution", "📊 Confidence", "👥 By User", "📝 Sample Comments"])
         
         with tab1:
             self._show_distribution_tab(sentiment_df, key_suffix)
@@ -327,13 +322,10 @@ class SentimentAnalysisComponent(BaseUIComponent):
             self._show_confidence_tab(sentiment_df, key_suffix)
         
         with tab3:
-            self._show_post_owner_analysis(sentiment_df, key_suffix)
+            self._show_user_analysis_tab(sentiment_df, key_suffix)
         
         with tab4:
-            self._show_comment_user_analysis(sentiment_df, key_suffix)
-        
-        with tab5:
-            self._show_sample_comments(sentiment_df, key_suffix)
+            self._show_sample_comments_tab(sentiment_df)
         
         # Export options
         st.markdown("##### 📥 Export Results")
@@ -486,307 +478,31 @@ class SentimentAnalysisComponent(BaseUIComponent):
         except Exception as e:
             st.error(f"Error in user analysis: {str(e)}")
 
-    def _show_post_owner_analysis(self, sentiment_df, key_suffix):
-        """Show sentiment analysis by post owners"""
-        st.markdown("##### 👤 Sentiment Analysis by Post Owner")
-        
+    def _show_sample_comments_tab(self, sentiment_df):
+        """Display sample comments by sentiment"""
         try:
-            # Group by post owner
-            post_owner_stats = sentiment_df.groupby('post_owner_username').agg({
-                'sentiment': lambda x: x.value_counts().to_dict(),
-                'confidence': 'mean',
-                'post_id': 'nunique',
-                'comment_owner_username': 'count'
-            }).round(3)
+            col1, col2, col3 = st.columns(3)
             
-            post_owner_stats.columns = ['Sentiment_Distribution', 'Avg_Confidence', 'Unique_Posts', 'Total_Comments']
+            sentiments = ['positive', 'negative', 'neutral']
+            sentiment_labels = ['😊 Most Positive', '😞 Most Negative', '😐 Most Neutral']
+            columns = [col1, col2, col3]
             
-            # Show top post owners by comment count
-            top_post_owners = post_owner_stats.nlargest(10, 'Total_Comments')
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Top Post Owners by Comment Volume**")
-                fig_owners = px.bar(
-                    x=top_post_owners.index,
-                    y=top_post_owners['Total_Comments'],
-                    title="Comments Received by Post Owner",
-                    labels={'x': 'Post Owner', 'y': 'Number of Comments'}
-                )
-                fig_owners.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_owners, use_container_width=True, key=f"post_owners_bar_{key_suffix}")
-            
-            with col2:
-                st.markdown("**Average Confidence by Post Owner**")
-                fig_conf = px.bar(
-                    x=top_post_owners.index,
-                    y=top_post_owners['Avg_Confidence'],
-                    title="Average Sentiment Confidence by Post Owner",
-                    labels={'x': 'Post Owner', 'y': 'Average Confidence'}
-                )
-                fig_conf.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_conf, use_container_width=True, key=f"post_owners_conf_{key_suffix}")
-            
-            # Post-level sentiment analysis
-            st.markdown("##### 📱 Sentiment Analysis by Post")
-            
-            # Group by post_id and post_owner
-            post_stats = sentiment_df.groupby(['post_id', 'post_owner_username']).agg({
-                'sentiment': lambda x: x.value_counts().to_dict(),
-                'confidence': 'mean',
-                'comment_owner_username': 'count',
-                'post_likes': 'first',
-                'engagement_rate': 'mean'
-            }).round(3)
-            
-            post_stats.columns = ['Sentiment_Distribution', 'Avg_Confidence', 'Comment_Count', 'Post_Likes', 'Avg_Engagement']
-            
-            # Show posts with most comments
-            top_posts = post_stats.nlargest(10, 'Comment_Count')
-            
-            if not top_posts.empty:
-                st.markdown("**Posts with Most Comments**")
-                st.dataframe(
-                    top_posts[['Comment_Count', 'Avg_Confidence', 'Post_Likes', 'Avg_Engagement']],
-                    use_container_width=True
-                )
-                
-                # Sentiment distribution for top posts
-                col3, col4 = st.columns(2)
-                
-                with col3:
-                    # Create post sentiment visualization
-                    post_sentiment_data = []
-                    for (post_id, owner), row in top_posts.head(5).iterrows():
-                        sentiment_dist = row['Sentiment_Distribution']
-                        for sentiment, count in sentiment_dist.items():
-                            post_sentiment_data.append({
-                                'Post': f"{owner[:15]}...\n({post_id[:8]}...)",
-                                'Sentiment': sentiment,
-                                'Count': count
-                            })
+            for sentiment, label, col in zip(sentiments, sentiment_labels, columns):
+                with col:
+                    st.markdown(f"**{label} Comments**")
                     
-                    if post_sentiment_data:
-                        post_sentiment_df = pd.DataFrame(post_sentiment_data)
-                        fig_post_sent = px.bar(
-                            post_sentiment_df,
-                            x='Post',
-                            y='Count',
-                            color='Sentiment',
-                            title="Sentiment Distribution for Top 5 Posts",
-                            color_discrete_map={
-                                'positive': '#2E8B57',
-                                'negative': '#DC143C',
-                                'neutral': '#4682B4'
-                            }
-                        )
-                        fig_post_sent.update_layout(xaxis_tickangle=-45)
-                        st.plotly_chart(fig_post_sent, use_container_width=True, key=f"post_sentiment_{key_suffix}")
-                
-                with col4:
-                    # Post engagement vs sentiment
-                    engagement_sentiment = []
-                    for (post_id, owner), row in top_posts.iterrows():
-                        sentiment_dist = row['Sentiment_Distribution']
-                        positive_ratio = sentiment_dist.get('positive', 0) / row['Comment_Count']
-                        engagement_sentiment.append({
-                            'Post_Owner': owner[:20],
-                            'Positive_Ratio': positive_ratio,
-                            'Engagement_Rate': row['Avg_Engagement'],
-                            'Comment_Count': row['Comment_Count']
-                        })
+                    # Get top comments for this sentiment
+                    sentiment_comments = sentiment_df[sentiment_df['sentiment'] == sentiment]
                     
-                    if engagement_sentiment:
-                        engagement_df = pd.DataFrame(engagement_sentiment)
-                        fig_engagement = px.scatter(
-                            engagement_df,
-                            x='Positive_Ratio',
-                            y='Engagement_Rate',
-                            size='Comment_Count',
-                            hover_data=['Post_Owner'],
-                            title="Engagement vs Positive Sentiment",
-                            labels={
-                                'Positive_Ratio': 'Positive Sentiment Ratio',
-                                'Engagement_Rate': 'Engagement Rate'
-                            }
-                        )
-                        st.plotly_chart(fig_engagement, use_container_width=True, key=f"engagement_sentiment_{key_suffix}")
-            
-        except Exception as e:
-            st.error(f"Error in post owner analysis: {str(e)}")
-    
-    def _show_comment_user_analysis(self, sentiment_df, key_suffix):
-        """Show sentiment analysis by comment users"""
-        st.markdown("##### 💬 Sentiment Analysis by Comment Users")
-        
-        try:
-            # Group by comment users
-            user_stats = sentiment_df.groupby('comment_owner_username').agg({
-                'sentiment': lambda x: x.value_counts().to_dict(),
-                'confidence': 'mean',
-                'post_owner_username': 'nunique',
-                'comment_likes': 'sum',
-                'engagement_rate': 'mean'
-            }).round(3)
-            
-            user_stats.columns = ['Sentiment_Distribution', 'Avg_Confidence', 'Posts_Commented', 'Total_Likes', 'Avg_Engagement']
-            
-            # Calculate user activity metrics
-            user_stats['Total_Comments'] = sentiment_df.groupby('comment_owner_username').size()
-            user_stats['Positive_Ratio'] = user_stats['Sentiment_Distribution'].apply(
-                lambda x: x.get('positive', 0) / sum(x.values()) if sum(x.values()) > 0 else 0
-            )
-            
-            # Show top commenters
-            top_commenters = user_stats.nlargest(15, 'Total_Comments')
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Most Active Comment Users**")
-                fig_users = px.bar(
-                    x=top_commenters.index[:10],
-                    y=top_commenters['Total_Comments'][:10],
-                    title="Top Comment Users by Activity",
-                    labels={'x': 'Comment User', 'y': 'Number of Comments'}
-                )
-                fig_users.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_users, use_container_width=True, key=f"comment_users_bar_{key_suffix}")
-            
-            with col2:
-                st.markdown("**User Sentiment Positivity**")
-                positive_users = top_commenters.nlargest(10, 'Positive_Ratio')
-                fig_positive = px.bar(
-                    x=positive_users.index,
-                    y=positive_users['Positive_Ratio'],
-                    title="Most Positive Comment Users",
-                    labels={'x': 'Comment User', 'y': 'Positive Sentiment Ratio'},
-                    color=positive_users['Positive_Ratio'],
-                    color_continuous_scale='Greens'
-                )
-                fig_positive.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_positive, use_container_width=True, key=f"positive_users_{key_suffix}")
-            
-            # User engagement analysis
-            st.markdown("**User Engagement vs Sentiment Analysis**")
-            
-            # Filter users with multiple comments for better analysis
-            active_users = user_stats[user_stats['Total_Comments'] >= 2].head(20)
-            
-            if not active_users.empty:
-                col3, col4 = st.columns(2)
-                
-                with col3:
-                    fig_scatter = px.scatter(
-                        active_users,
-                        x='Total_Comments',
-                        y='Avg_Confidence',
-                        size='Posts_Commented',
-                        color='Positive_Ratio',
-                        hover_data=['Total_Likes'],
-                        title="User Activity vs Confidence",
-                        labels={
-                            'Total_Comments': 'Number of Comments',
-                            'Avg_Confidence': 'Average Confidence',
-                            'Positive_Ratio': 'Positive Ratio'
-                        },
-                        color_continuous_scale='RdYlGn'
-                    )
-                    st.plotly_chart(fig_scatter, use_container_width=True, key=f"user_scatter_{key_suffix}")
-                
-                with col4:
-                    # User sentiment distribution
-                    user_sentiment_data = []
-                    for user, row in active_users.head(8).iterrows():
-                        sentiment_dist = row['Sentiment_Distribution']
-                        for sentiment, count in sentiment_dist.items():
-                            user_sentiment_data.append({
-                                'User': user[:20] + '...' if len(user) > 20 else user,
-                                'Sentiment': sentiment,
-                                'Count': count
-                            })
-                    
-                    if user_sentiment_data:
-                        user_sentiment_df = pd.DataFrame(user_sentiment_data)
-                        fig_user_sent = px.bar(
-                            user_sentiment_df,
-                            x='User',
-                            y='Count',
-                            color='Sentiment',
-                            title="Sentiment Distribution by Active Users",
-                            color_discrete_map={
-                                'positive': '#2E8B57',
-                                'negative': '#DC143C',
-                                'neutral': '#4682B4'
-                            }
-                        )
-                        fig_user_sent.update_layout(xaxis_tickangle=-45)
-                        st.plotly_chart(fig_user_sent, use_container_width=True, key=f"user_sentiment_dist_{key_suffix}")
-                
-                # Summary statistics
-                st.markdown("**Comment User Summary Statistics**")
-                summary_stats = pd.DataFrame({
-                    'Metric': [
-                        'Total Unique Comment Users',
-                        'Average Comments per User',
-                        'Most Active User Comments',
-                        'Average Positive Ratio',
-                        'Users with High Confidence (>0.8)'
-                    ],
-                    'Value': [
-                        len(user_stats),
-                        f"{user_stats['Total_Comments'].mean():.1f}",
-                        user_stats['Total_Comments'].max(),
-                        f"{user_stats['Positive_Ratio'].mean():.3f}",
-                        (user_stats['Avg_Confidence'] > 0.8).sum()
-                    ]
-                })
-                st.dataframe(summary_stats, use_container_width=True, hide_index=True)
-            
-        except Exception as e:
-            st.error(f"Error in comment user analysis: {str(e)}")
-    
-    def _show_sample_comments(self, sentiment_df, key_suffix):
-        """Display sample comments for each sentiment category"""
-        st.markdown("##### 📝 Sample Comments by Sentiment")
-        
-        try:
-            # Get samples for each sentiment
-            sentiment_categories = ['positive', 'negative', 'neutral']
-            
-            for sentiment in sentiment_categories:
-                sentiment_data = sentiment_df[sentiment_df['sentiment'] == sentiment]
-                
-                if not sentiment_data.empty:
-                    # Get highest confidence samples
-                    top_samples = sentiment_data.nlargest(5, 'confidence')
-                    
-                    emoji_map = {'positive': '😊', 'negative': '😞', 'neutral': '😐'}
-                    color_map = {'positive': '#2E8B57', 'negative': '#DC143C', 'neutral': '#4682B4'}
-                    
-                    st.markdown(f"**{emoji_map[sentiment]} {sentiment.title()} Comments (Top {len(top_samples)} by confidence)**")
-                    
-                    for idx, row in top_samples.iterrows():
-                        comment_text = row.get('comment_text', row.get('comment_full_text', 'No text available'))
-                        confidence = row.get('confidence', 0.0)
-                        username = row.get('comment_owner_username', 'Unknown')
+                    if not sentiment_comments.empty:
+                        top_comments = sentiment_comments.nlargest(5, 'confidence')
                         
-                        # Truncate very long comments for display
-                        display_text = comment_text[:200] + "..." if len(str(comment_text)) > 200 else comment_text
+                        for i, (_, comment) in enumerate(top_comments.iterrows()):
+                            with st.expander(f"@{comment['username']} ({comment['confidence']:.3f})"):
+                                st.write(comment['comment_text'])
+                    else:
+                        st.info(f"No {sentiment} comments found")
                         
-                        with st.container():
-                            st.markdown(f"""
-                            <div style="border-left: 4px solid {color_map[sentiment]}; padding: 10px; margin: 5px 0; background-color: #f8f9fa;">
-                                <strong>@{username}</strong> (Confidence: {confidence:.3f})<br>
-                                <em>"{display_text}"</em>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    st.markdown("---")
-                else:
-                    st.info(f"No {sentiment} comments found in the dataset")
-                    
         except Exception as e:
             st.error(f"Error displaying sample comments: {str(e)}")
 
