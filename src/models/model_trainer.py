@@ -18,6 +18,7 @@ import json
 import logging
 import time
 from tqdm import tqdm
+import os
 
 class ModelTrainer:
     def __init__(self):
@@ -35,7 +36,7 @@ class ModelTrainer:
                     test_size=0.2, random_state=42, cv_folds=5, 
                     optimize_hyperparams=False, n_trials=20):
         """
-        Train multiple ML models for engagement prediction
+        Train multiple ML models for engagement prediction with robust fallback
         
         Args:
             models: List of models to train
@@ -51,25 +52,31 @@ class ModelTrainer:
         """
         if models is None:
             models = ["Random Forest", "XGBoost", "LightGBM"]
-        
         self.logger.info(f"Training models: {models}")
         
         # Load and prepare data
         X, y = self._prepare_training_data(target)
-        
+        if X is None or y is None:
+            self.logger.error("No valid training data available. Skipping model training.")
+            return {m: {"error": "No valid training data."} for m in models}
         # Split data
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state, stratify=y
-        )
-        
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=random_state, stratify=y
+            )
+        except Exception as e:
+            self.logger.error(f"Error in train_test_split: {e}")
+            return {m: {"error": "Train/test split failed."} for m in models}
         results = {}
-        
         # Train each model
         for model_name in models:
             self.logger.info(f"Training {model_name}...")
             start_time = time.time()
-            
             try:
+                if y_train.nunique() <= 1 or min(y_train.value_counts()) < 5:
+                    self.logger.warning(f"Target for {model_name} is not suitable. Skipping.")
+                    results[model_name] = {"error": "Target is single-class or highly imbalanced."}
+                    continue
                 if model_name == "Random Forest":
                     model_results = self._train_random_forest(
                         X_train, X_test, y_train, y_test, cv_folds, optimize_hyperparams, n_trials
@@ -97,115 +104,89 @@ class ModelTrainer:
                 else:
                     self.logger.warning(f"Unknown model: {model_name}")
                     continue
-                
                 training_time = time.time() - start_time
                 model_results['training_time'] = training_time
                 results[model_name] = model_results
-                
                 self.logger.info(f"{model_name} training completed in {training_time:.2f}s")
-                
             except Exception as e:
                 self.logger.error(f"Error training {model_name}: {str(e)}")
                 results[model_name] = {"error": str(e)}
-        
         return results
     
     def _prepare_training_data(self, target):
-        """Prepare training data"""
+        """Prepare training data with robust checks and fallback"""
         self.logger.info("Preparing training data...")
-        
         # Load preprocessed data
-        df = pd.read_csv("outputs/preprocessed_data.csv")
-        
+        try:
+            df = pd.read_csv("outputs/preprocessed_data.csv")
+        except Exception as e:
+            self.logger.error(f"Could not load preprocessed_data.csv: {e}")
+            raise
         # Load high-value followers
-        with open("outputs/high_value_followers.json", "r") as f:
-            high_value_followers = json.load(f)
-        
-        # Load sentiment scores (handle empty file)
+        hv_path = "outputs/high_value_followers.json"
+        if not os.path.exists(hv_path):
+            self.logger.warning(f"High-value followers file not found: {hv_path}")
+            high_value_followers = {}
+        else:
+            with open(hv_path, "r") as f:
+                high_value_followers = json.load(f)
+        # Load sentiment scores
         try:
             with open("outputs/sentiment_scores.json", "r") as f:
                 content = f.read().strip()
-                if content:
-                    sentiment_scores = json.loads(content)
-                else:
-                    sentiment_scores = {}
-                    self.logger.warning("Sentiment scores file is empty, using default sentiment values")
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            self.logger.warning(f"Could not load sentiment scores: {e}, using default sentiment values")
+                sentiment_scores = json.loads(content) if content else {}
+        except Exception as e:
+            self.logger.warning(f"Could not load sentiment scores: {e}")
             sentiment_scores = {}
-        
         # Filter for high-value followers
         high_value_usernames = set(high_value_followers.keys())
-        df_filtered = df[df['comment_owner_username'].isin(high_value_usernames)].copy()
-        
+        df_filtered = df[df.get('comment_owner_username', '').isin(high_value_usernames)].copy() if 'comment_owner_username' in df.columns else df.copy()
         # Add sentiment features
         df_filtered = self._add_sentiment_features(df_filtered, sentiment_scores)
-        
-        # Encode categorical variables that aren't already dummy-encoded
-        # Check if we have proper dummy-encoded media columns (not including the original media_type column)
-        existing_media_dummy_cols = [col for col in df_filtered.columns if col.startswith('media_') and col != 'media_type']
-        
-        if 'media_type' in df_filtered.columns and len(existing_media_dummy_cols) == 0:
-            # Only create dummy encoding if proper dummy columns don't exist
-            media_dummies = pd.get_dummies(df_filtered['media_type'], prefix='media')
-            df_filtered = pd.concat([df_filtered, media_dummies], axis=1)
-            self.logger.info(f"Created media type dummy encoding: {list(media_dummies.columns)}")
-        elif len(existing_media_dummy_cols) > 0:
-            # If proper dummy encoding already exists, just log it
-            self.logger.info(f"Using existing media type dummy encoding: {existing_media_dummy_cols}")
-        
-        # Handle category encoding (may already be dummy-encoded)
-        if 'Category' in df_filtered.columns and not any(col.startswith('category_') for col in df_filtered.columns):
-            # Only create dummy encoding if it doesn't already exist
-            category_dummies = pd.get_dummies(df_filtered['Category'], prefix='category')
-            df_filtered = pd.concat([df_filtered, category_dummies], axis=1)
-            self.logger.info(f"Created category dummy encoding: {list(category_dummies.columns)}")
-        elif any(col.startswith('category_') for col in df_filtered.columns):
-            # If dummy encoding already exists, just log it
-            existing_category_cols = [col for col in df_filtered.columns if col.startswith('category_')]
-            self.logger.info(f"Using existing category dummy encoding: {existing_category_cols}")
-        
-        # Select features
+        # Dummy encoding for categorical columns
+        categorical_cols = [col for col in ['media_type', 'Category'] if col in df_filtered.columns]
+        if categorical_cols:
+            df_filtered = pd.get_dummies(df_filtered, columns=categorical_cols, prefix=categorical_cols)
+        # Feature selection
         feature_columns = [
             'likes', 'comments_count', 'comment_likes', '#Followers',
             'engagement_frequency', 'influence_score', 'content_interaction',
             'comment_engagement_ratio', 'comment_length', 'has_emoji',
             'sentiment_positive', 'sentiment_negative', 'sentiment_neutral'
-        ]
-        
-        # Add dummy encoded features (excluding original categorical columns)
-        dummy_columns = [col for col in df_filtered.columns if col.startswith(('media_', 'category_')) and col not in ['media_type', 'Category']]
-        feature_columns.extend(dummy_columns)
-        
-        # Keep only existing columns
+        ] + [col for col in df_filtered.columns if col.startswith(('media_', 'category_'))]
         feature_columns = [col for col in feature_columns if col in df_filtered.columns]
         self.feature_columns = feature_columns
-        
-        X = df_filtered[feature_columns].fillna(0)
-        
-        # Prepare target variable
+        # Target creation with fallback
+        y = None
         if target == "engagement_probability":
-            y = df_filtered['engagement_probability'].fillna(0)
-            # Check if all values are the same
-            if y.nunique() <= 1:
-                self.logger.warning("All engagement_probability values are the same, using likes as alternative target")
-                # Use likes above median as high engagement
-                likes_median = df_filtered['likes'].median()
-                y = (df_filtered['likes'] > likes_median).astype(int)
-            else:
-                # Convert to binary classification using median threshold
-                y = (y > y.median()).astype(int)
+            if 'engagement_probability' in df_filtered.columns:
+                y_raw = df_filtered['engagement_probability'].fillna(0)
+                if y_raw.nunique() > 1:
+                    y = (y_raw > y_raw.median()).astype(int)
+                else:
+                    self.logger.warning("All engagement_probability values are the same, using likes as alternative target")
+            if y is None or y.nunique() <= 1:
+                if 'likes' in df_filtered.columns:
+                    likes_median = df_filtered['likes'].median()
+                    y = (df_filtered['likes'] > likes_median).astype(int)
         elif target == "engagement_binary":
-            y = df_filtered['engagement_binary'].fillna(0)
-            # Check if all values are the same
-            if y.nunique() <= 1:
-                self.logger.warning("All engagement_binary values are the same, using likes as alternative target")
-                # Use likes above median as high engagement
-                likes_median = df_filtered['likes'].median()
-                y = (df_filtered['likes'] > likes_median).astype(int)
+            if 'engagement_binary' in df_filtered.columns:
+                y_raw = df_filtered['engagement_binary'].fillna(0)
+                if y_raw.nunique() > 1:
+                    y = y_raw.astype(int)
+                else:
+                    self.logger.warning("All engagement_binary values are the same, using likes as alternative target")
+            if y is None or y.nunique() <= 1:
+                if 'likes' in df_filtered.columns:
+                    likes_median = df_filtered['likes'].median()
+                    y = (df_filtered['likes'] > likes_median).astype(int)
         else:
             raise ValueError(f"Unknown target variable: {target}")
-        
+        # Final checks
+        if y is None or y.nunique() <= 1 or min(y.value_counts()) < 5:
+            self.logger.warning(f"Target variable is not suitable for training. Fallback to general dataset or skip.")
+            return None, None
+        X = df_filtered[feature_columns].fillna(0)
         self.logger.info(f"Training data prepared: {X.shape}, Target distribution: {y.value_counts().to_dict()}")
         return X, y
     
@@ -265,6 +246,11 @@ class ModelTrainer:
     
     def _train_xgboost(self, X_train, X_test, y_train, y_test, cv_folds, optimize_hyperparams, n_trials):
         """Train XGBoost model"""
+        # Check for binary target
+        if len(np.unique(y_train)) < 2:
+            self.logger.error("XGBoost requires at least two classes in the target variable. Skipping XGBoost training.")
+            return {"error": "Target variable for XGBoost must be binary (0/1) and contain both classes."}
+        
         if optimize_hyperparams:
             # Hyperparameter optimization
             import optuna
@@ -369,14 +355,18 @@ class ModelTrainer:
         
         # Evaluate
         y_pred = model.predict(X_test_np)
-        y_pred_proba = model.predict_proba(X_test_np)[:, 1]
-        
+        y_pred_proba = None
+        proba = model.predict_proba(X_test_np)
+        if proba.shape[1] > 1:
+            y_pred_proba = proba[:, 1]
+        else:
+            y_pred_proba = proba[:, 0]
         results = {
             'accuracy': accuracy_score(y_test_np, y_pred),
-            'precision': precision_score(y_test_np, y_pred),
-            'recall': recall_score(y_test_np, y_pred),
-            'f1_score': f1_score(y_test_np, y_pred),
-            'roc_auc': roc_auc_score(y_test_np, y_pred_proba)
+            'precision': precision_score(y_test_np, y_pred, zero_division=0),
+            'recall': recall_score(y_test_np, y_pred, zero_division=0),
+            'f1_score': f1_score(y_test_np, y_pred, zero_division=0),
+            'roc_auc': roc_auc_score(y_test_np, y_pred_proba) if len(np.unique(y_test_np)) > 1 and y_pred_proba is not None else 0.5
         }
         
         return results
@@ -402,7 +392,7 @@ class ModelTrainer:
                     x = torch.relu(self.conv1(x, edge_index))
                     x = self.dropout(x)
                     x = torch.relu(self.conv2(x, edge_index))
-                    x = global_mean_pool(x, batch)
+                    # Remove global_mean_pool for per-node outputs
                     x = self.classifier(x)
                     return x
             
@@ -418,11 +408,14 @@ class ModelTrainer:
             # Initialize model
             model = SimpleGCN(X_train.shape[1])
             optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-            criterion = nn.CrossEntropyLoss()
-            
-            # Training loop (simplified)
+            # Use class weights for imbalance
+            from sklearn.utils.class_weight import compute_class_weight
+            class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
+            class_weights_tensor = torch.tensor(class_weights, dtype=torch.float)
+            criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
+            # Training loop (more epochs)
             model.train()
-            for epoch in range(50):
+            for epoch in range(200):
                 optimizer.zero_grad()
                 batch = torch.zeros(num_nodes, dtype=torch.long)  # Single batch
                 out = model(x_train_tensor, edge_index, batch)
@@ -439,18 +432,17 @@ class ModelTrainer:
                 x_test_tensor = torch.tensor(X_test.values, dtype=torch.float)
                 batch_test = torch.zeros(len(X_test), dtype=torch.long)
                 edge_index_test = torch.randint(0, len(X_test), (2, len(X_test) * 2))
-                
                 out = model(x_test_tensor, edge_index_test, batch_test)
                 pred = out.argmax(dim=1).cpu().numpy()
-                
+                # Log predictions for debugging
+                print(f"GNN predictions: {np.unique(pred, return_counts=True)}")
                 results = {
                     'accuracy': accuracy_score(y_test, pred),
-                    'precision': precision_score(y_test, pred),
-                    'recall': recall_score(y_test, pred),
-                    'f1_score': f1_score(y_test, pred),
+                    'precision': precision_score(y_test, pred, zero_division=0),
+                    'recall': recall_score(y_test, pred, zero_division=0),
+                    'f1_score': f1_score(y_test, pred, zero_division=0),
                     'roc_auc': 0.5  # Placeholder
                 }
-            
             return results
             
         except ImportError:
@@ -488,15 +480,23 @@ class ModelTrainer:
         """Evaluate model performance"""
         # Predictions
         y_pred = model.predict(X_test)
-        y_pred_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, 'predict_proba') else y_pred
+        y_pred_proba = None
+        if hasattr(model, 'predict_proba'):
+            proba = model.predict_proba(X_test)
+            if proba.shape[1] > 1:
+                y_pred_proba = proba[:, 1]
+            else:
+                y_pred_proba = proba[:, 0]
+        else:
+            y_pred_proba = y_pred
         
         # Basic metrics
         results = {
             'accuracy': accuracy_score(y_test, y_pred),
-            'precision': precision_score(y_test, y_pred),
-            'recall': recall_score(y_test, y_pred),
-            'f1_score': f1_score(y_test, y_pred),
-            'roc_auc': roc_auc_score(y_test, y_pred_proba) if len(np.unique(y_test)) > 1 else 0.5
+            'precision': precision_score(y_test, y_pred, zero_division=0),
+            'recall': recall_score(y_test, y_pred, zero_division=0),
+            'f1_score': f1_score(y_test, y_pred, zero_division=0),
+            'roc_auc': roc_auc_score(y_test, y_pred_proba) if len(np.unique(y_test)) > 1 and y_pred_proba is not None else 0.5
         }
         
         # Cross-validation scores
@@ -539,3 +539,194 @@ class ModelTrainer:
             self.logger.error(f"Error getting feature importance: {str(e)}")
         
         return None
+    
+    def train_engagement_model(self, owner_id=None, use_multimodal=True, models=None, target="engagement_probability", test_size=0.2, random_state=42, cv_folds=5, optimize_hyperparams=False, n_trials=20):
+        """
+        Modular function for user-specific or general engagement prediction.
+        Robustly handles data filtering, target creation, and model training.
+        """
+        self.logger.info(f"Starting train_engagement_model for owner_id={owner_id}, use_multimodal={use_multimodal}")
+        df = pd.read_csv("outputs/preprocessed_data.csv")
+        # Load sentiment scores
+        try:
+            with open("outputs/sentiment_scores.json", "r") as f:
+                content = f.read().strip()
+                sentiment_scores = json.loads(content) if content else {}
+        except Exception as e:
+            self.logger.warning(f"Could not load sentiment scores: {e}")
+            sentiment_scores = {}
+        # Load follower analysis if available
+        follower_analysis = None
+        try:
+            with open("outputs/dataset_follower_analysis.json", "r") as f:
+                follower_analysis = json.load(f)
+        except Exception:
+            self.logger.info("No follower_analysis found or not used.")
+        # Owner-specific mode
+        if owner_id:
+            hv_path = f"outputs/high_value_followers_{owner_id}.json"
+            try:
+                with open(hv_path, "r") as f:
+                    hv_followers = json.load(f)["high_value_followers"]
+                hv_usernames = set(hv_followers.keys())
+                df_filtered = df[(df["owner_id"] == int(owner_id)) & (df["comment_owner_username"].isin(hv_usernames))].copy()
+            except Exception as e:
+                self.logger.warning(f"Could not load high_value_followers for owner_id {owner_id}: {e}")
+                df_filtered = df.copy()
+                hv_usernames = set(df_filtered["comment_owner_username"].unique())
+        else:
+            hv_files = [f for f in os.listdir("outputs") if f.startswith("high_value_followers_")]
+            hv_usernames = set()
+            for fname in hv_files:
+                try:
+                    with open(os.path.join("outputs", fname), "r") as f:
+                        hv_usernames.update(json.load(f)["high_value_followers"].keys())
+                except Exception as e:
+                    self.logger.warning(f"Could not load {fname}: {e}")
+            df_filtered = df[df["comment_owner_username"].isin(hv_usernames)].copy()
+        # Fallback if filtering results in too few samples
+        if len(df_filtered) < 20:
+            self.logger.warning(f"Filtered data too small ({len(df_filtered)} rows), using general dataset.")
+            df_filtered = df.copy()
+            hv_usernames = set(df_filtered["comment_owner_username"].unique())
+        # Add sentiment features
+        df_filtered = self._add_sentiment_features(df_filtered, sentiment_scores)
+        # Optionally add follower_analysis features
+        if follower_analysis:
+            for uname in df_filtered["comment_owner_username"].unique():
+                if uname in follower_analysis:
+                    for col, val in follower_analysis[uname].items():
+                        df_filtered.loc[df_filtered["comment_owner_username"] == uname, f"fa_{col}"] = val
+        # Feature selection
+        feature_columns = [
+            "likes", "comments_count", "comment_likes", "#Followers", "engagement_frequency", "influence_score", "content_interaction", "comment_engagement_ratio", "comment_length", "has_emoji", "sentiment_positive", "sentiment_negative", "sentiment_neutral"
+        ] + [col for col in df_filtered.columns if col.startswith(("media_", "category_", "fa_"))]
+        for col_to_remove in ["media_type", "Category"]:
+            if col_to_remove in feature_columns:
+                feature_columns.remove(col_to_remove)
+        feature_columns = [col for col in feature_columns if col in df_filtered.columns]
+        X = df_filtered[feature_columns].fillna(0)
+        # Target creation with fallback and checks
+        y = None
+        if target == "engagement_probability" and "engagement_probability" in df_filtered.columns:
+            y_raw = df_filtered["engagement_probability"].fillna(0)
+            if y_raw.nunique() > 1:
+                y = (y_raw > y_raw.median()).astype(int)
+            else:
+                self.logger.warning("All engagement_probability values are the same, using likes as alternative target")
+        if y is None or y.nunique() <= 1:
+            likes_median = df_filtered["likes"].median()
+            y = (df_filtered["likes"] > likes_median).astype(int)
+        # Final check: if still single-class or highly imbalanced, fallback to general dataset
+        if y.nunique() <= 1 or min(y.value_counts()) < 5:
+            self.logger.warning(f"Target variable is single-class or highly imbalanced after filtering. Fallback to general dataset.")
+            df_filtered = df.copy()
+            df_filtered = self._add_sentiment_features(df_filtered, sentiment_scores)
+            feature_columns = [
+                "likes", "comments_count", "comment_likes", "#Followers", "engagement_frequency", "influence_score", "content_interaction", "comment_engagement_ratio", "comment_length", "has_emoji", "sentiment_positive", "sentiment_negative", "sentiment_neutral"
+            ] + [col for col in df_filtered.columns if col.startswith(("media_", "category_", "fa_"))]
+            feature_columns = [col for col in feature_columns if col in df_filtered.columns]
+            X = df_filtered[feature_columns].fillna(0)
+            y_raw = df_filtered["engagement_probability"].fillna(0) if "engagement_probability" in df_filtered.columns else None
+            if y_raw is not None and y_raw.nunique() > 1:
+                y = (y_raw > y_raw.median()).astype(int)
+            else:
+                likes_median = df_filtered["likes"].median()
+                y = (df_filtered["likes"] > likes_median).astype(int)
+        self.logger.info(f"Final training data: {X.shape}, Target distribution: {y.value_counts().to_dict()}")
+        # If still not suitable, skip model training and save error outputs
+        if y.nunique() <= 1 or min(y.value_counts()) < 5:
+            error_msg = f"Target variable is single-class or highly imbalanced. Model training skipped."
+            self.logger.error(error_msg)
+            results = {"error": error_msg}
+            with open("outputs/model_comparison.json", "w") as f:
+                json.dump(results, f, indent=2)
+            with open("outputs/predictions.json", "w") as f:
+                json.dump({"owner_id": owner_id, "error": error_msg}, f)
+            with open("outputs/profiles.json", "w") as f:
+                json.dump({"owner_id": owner_id, "profiles": list(hv_usernames)}, f)
+            with open("outputs/guidelines.json", "w") as f:
+                json.dump({"owner_id": owner_id, "guidelines": ["Not enough data for meaningful prediction."]}, f)
+            return results
+        # Model training with proper train/test split
+        from sklearn.model_selection import train_test_split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
+        results = {}
+        top_features_dict = {}
+        confusion_matrices = {}
+        predictions_dict = {}
+        if use_multimodal:
+            # Ensure all features are strictly numeric for multimodal models
+            X_mm_train = X_train.select_dtypes(include=[np.number]).astype(np.float32)
+            X_mm_test = X_test.select_dtypes(include=[np.number]).astype(np.float32)
+            results["BERT"] = self._train_bert_engagement(X_mm_train, X_mm_test, y_train, y_test)
+            results["TabNet"] = self._train_tabnet(X_mm_train, X_mm_test, y_train, y_test, cv_folds)
+            results["GNN"] = self._train_gnn(X_mm_train, X_mm_test, y_train, y_test)
+        for model_name in models or ["Random Forest", "XGBoost", "LightGBM"]:
+            if model_name == "Random Forest":
+                res = self._train_random_forest(X_train, X_test, y_train, y_test, cv_folds, optimize_hyperparams, n_trials)
+                results[model_name] = res
+                try:
+                    model = joblib.load("outputs/rf_model.pkl")
+                    predictions_dict[model_name] = model.predict(X_test).tolist()
+                except Exception:
+                    predictions_dict[model_name] = []
+            elif model_name == "XGBoost":
+                res = self._train_xgboost(X_train, X_test, y_train, y_test, cv_folds, optimize_hyperparams, n_trials)
+                results[model_name] = res
+                try:
+                    model = joblib.load("outputs/xgb_model.pkl")
+                    predictions_dict[model_name] = model.predict(X_test).tolist()
+                except Exception:
+                    predictions_dict[model_name] = []
+            elif model_name == "LightGBM":
+                res = self._train_lightgbm(X_train, X_test, y_train, y_test, cv_folds, optimize_hyperparams, n_trials)
+                results[model_name] = res
+                try:
+                    model = joblib.load("outputs/lgb_model.pkl")
+                    predictions_dict[model_name] = model.predict(X_test).tolist()
+                except Exception:
+                    predictions_dict[model_name] = []
+            # Feature importance
+            fi = self.get_feature_importance(model_name)
+            if fi:
+                top_features_dict[model_name] = [f for f, v in fi[:5]]
+            # Confusion matrix
+            try:
+                from sklearn.metrics import confusion_matrix
+                y_pred = predictions_dict.get(model_name, [])
+                if y_pred:
+                    confusion_matrices[model_name] = confusion_matrix(y_test, y_pred).tolist()
+            except Exception:
+                pass
+        # Ensemble F1 score (average of test F1 scores)
+        results["Ensemble"] = {"f1_score": np.mean([r.get("f1_score", 0) for r in results.values() if isinstance(r, dict)])}
+        # Add top features and confusion matrices to results
+        for model_name in top_features_dict:
+            if model_name in results:
+                results[model_name]["top_features"] = top_features_dict[model_name]
+        for model_name in confusion_matrices:
+            if model_name in results:
+                results[model_name]["confusion_matrix"] = confusion_matrices[model_name]
+        # Generate actionable recommendations
+        recommendations = []
+        best_model = max(results, key=lambda k: results[k].get("f1_score", 0) if isinstance(results[k], dict) else 0)
+        best_features = top_features_dict.get(best_model, [])
+        if "sentiment_positive" in best_features:
+            recommendations.append("Increase posts with positive sentiment for high-value followers.")
+        if "likes" in best_features:
+            recommendations.append("Engage top followers with personalized comments and likes.")
+        if "#Followers" in best_features:
+            recommendations.append("Target posts to users with higher follower counts for maximum reach.")
+        if not recommendations:
+            recommendations.append("Post more frequently for top followers and use engaging captions.")
+        # Save outputs
+        with open("outputs/model_comparison.json", "w") as f:
+            json.dump(results, f, indent=2)
+        with open("outputs/predictions.json", "w") as f:
+            json.dump({"owner_id": owner_id, "predictions": predictions_dict}, f)
+        with open("outputs/profiles.json", "w") as f:
+            json.dump({"owner_id": owner_id, "profiles": list(hv_usernames)}, f)
+        with open("outputs/guidelines.json", "w") as f:
+            json.dump({"owner_id": owner_id, "guidelines": recommendations}, f)
+        return results

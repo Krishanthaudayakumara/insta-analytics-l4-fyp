@@ -6,7 +6,7 @@ Handles ML model training interface
 import streamlit as st
 import plotly.express as px
 import os
-from .base import BaseUIComponent
+from src.ui.base import BaseUIComponent
 
 
 class ModelTrainingComponent(BaseUIComponent):
@@ -59,11 +59,19 @@ class ModelTrainingComponent(BaseUIComponent):
             optimize_hyperparams = st.checkbox("Hyperparameter Optimization", value=False)
             n_trials = st.slider("Optimization Trials", 10, 100, 20) if optimize_hyperparams else 20
         
+        # Owner selection & Multimodal training
+        st.markdown("#### Owner Selection & Multimodal Training")
+        owner_ids = [None] + [f.split('_')[-1].split('.')[0] for f in os.listdir("outputs") if f.startswith("high_value_followers_")]
+        owner_id = st.selectbox("Select Owner (user-specific or All)", owner_ids, format_func=lambda x: "All" if x is None else str(x))
+        use_multimodal = st.checkbox("Use Multimodal (BERT + TabNet/GNN)", value=True)
+        
         # Training button
         if st.button("🚀 Train Models", type="primary"):
             with st.spinner("Training models... This may take several minutes"):
                 try:
-                    results = self.model_trainer.train_models(
+                    results = self.model_trainer.train_engagement_model(
+                        owner_id=owner_id,
+                        use_multimodal=use_multimodal,
                         models=models_to_train,
                         target=target_variable,
                         test_size=test_size,
@@ -78,6 +86,15 @@ class ModelTrainingComponent(BaseUIComponent):
                     # Show training results
                     self._show_training_results(results)
                     
+                    # Show model comparison chart
+                    if os.path.exists("outputs/model_comparison.json"):
+                        import json
+                        with open("outputs/model_comparison.json", "r") as f:
+                            comp = json.load(f)
+                        metrics = {k: v.get("f1_score", 0) for k, v in comp.items()}
+                        fig = px.bar(x=list(metrics.keys()), y=list(metrics.values()), title="Model F1-Score Comparison")
+                        st.plotly_chart(fig, use_container_width=True)
+                
                 except Exception as e:
                     st.error(f"❌ Error during training: {str(e)}")
         
