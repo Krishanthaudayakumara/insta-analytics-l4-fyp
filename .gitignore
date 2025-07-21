@@ -1,2 +1,24 @@
 # Ignore data folder and its contents
 data/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.env/
+
+# Model files and outputs
+*.joblib
+*.pth
+*.json
+outputs/
+catboost_info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
