@@ -190,9 +190,11 @@ class ModularInstagramEngagementApp:
         st.sidebar.markdown("### 📋 Pipeline Status")
         
         # Check file existence for status
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         statuses = {
             "📊 Data Preprocessed": os.path.exists("outputs/preprocessed_data.csv"),
-            "👑 High-Value Followers": os.path.exists("outputs/high_value_followers.json"),
+            "👑 High-Value Followers": check_high_value_data_exists(),
             "🧠 Sentiment Analysis": os.path.exists("outputs/sentiment_scores.json"),
             "🤖 Models Trained": os.path.exists("outputs/rf_model.pkl"),
             "📈 Models Evaluated": os.path.exists("outputs/metrics.json"),

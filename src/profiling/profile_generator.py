@@ -75,8 +75,8 @@ class ProfileGenerator:
     
     def _load_high_value_followers(self):
         """Load high-value followers data"""
-        with open("outputs/high_value_followers.json", "r") as f:
-            return json.load(f)
+        from src.utils.high_value_utils import get_consolidated_high_value_followers
+        return get_consolidated_high_value_followers()
     
     def _load_sentiment_scores(self):
         """Load sentiment analysis results"""

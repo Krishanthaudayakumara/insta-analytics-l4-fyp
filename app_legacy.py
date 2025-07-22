@@ -123,9 +123,11 @@ class InstagramEngagementApp:
         st.sidebar.markdown("### 📋 Pipeline Status")
         
         # Check if files exist to determine status
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         statuses = {
             "Data Preprocessed": os.path.exists("outputs/preprocessed_data.csv"),
-            "High-Value Followers": os.path.exists("outputs/high_value_followers.json"),
+            "High-Value Followers": check_high_value_data_exists(),
             "Sentiment Analysis": os.path.exists("outputs/sentiment_scores.json"),
             "Models Trained": os.path.exists("outputs/rf_model.pkl"),
             "Models Evaluated": os.path.exists("outputs/metrics.json"),
@@ -378,8 +380,18 @@ class InstagramEngagementApp:
                         influence_weight=influence_weight
                     )
                     
-                    # Save results
-                    with open("outputs/high_value_followers.json", "w") as f:
+                    # Save results using account-specific approach
+                    from src.utils.high_value_utils import get_owner_id_from_data
+                    owner_id = get_owner_id_from_data()
+                    
+                    if owner_id:
+                        output_file = f"outputs/high_value_followers_{owner_id}.json"
+                        st.info(f"Saving results for owner_id: {owner_id}")
+                    else:
+                        output_file = "outputs/high_value_followers_general.json"
+                        st.info("No specific owner_id found, saving as general results")
+                    
+                    with open(output_file, "w") as f:
                         json.dump(high_value_followers, f)
                     
                     st.success(f"✅ Selected {len(high_value_followers)} high-value followers!")
@@ -401,10 +413,10 @@ class InstagramEngagementApp:
                     st.error(f"❌ Error during selection: {str(e)}")
         
         # Show existing results if available
-        if os.path.exists("outputs/high_value_followers.json"):
-            with open("outputs/high_value_followers.json", "r") as f:
-                existing_followers = json.load(f)
-            
+        from src.utils.high_value_utils import get_consolidated_high_value_followers
+        existing_followers = get_consolidated_high_value_followers()
+        
+        if existing_followers:
             st.info(f"📊 Previously selected: {len(existing_followers)} followers")
     
     def show_sentiment_analysis(self):
@@ -514,13 +526,22 @@ class InstagramEngagementApp:
         st.markdown("### 🤖 Advanced ML Model Training")
         
         # Check prerequisites
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         prerequisites = [
             ("Preprocessed Data", "outputs/preprocessed_data.csv"),
-            ("High-Value Followers", "outputs/high_value_followers.json"),
+            ("High-Value Followers", check_high_value_data_exists()),
             ("Sentiment Scores", "outputs/sentiment_scores.json")
         ]
         
-        missing = [name for name, path in prerequisites if not os.path.exists(path)]
+        missing = []
+        for name, path_or_status in prerequisites:
+            if isinstance(path_or_status, bool):
+                if not path_or_status:
+                    missing.append(name)
+            elif isinstance(path_or_status, str):
+                if not os.path.exists(path_or_status):
+                    missing.append(name)
         if missing:
             st.warning(f"⚠️ Missing: {', '.join(missing)}")
             return
@@ -709,13 +730,22 @@ class InstagramEngagementApp:
         st.markdown("### 👤 Generate User Profiles")
         
         # Check prerequisites
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         prerequisites = [
-            ("High-Value Followers", "outputs/high_value_followers.json"),
+            ("High-Value Followers", check_high_value_data_exists()),
             ("Sentiment Scores", "outputs/sentiment_scores.json"),
             ("Model Metrics", "outputs/metrics.json")
         ]
         
-        missing = [name for name, path in prerequisites if not os.path.exists(path)]
+        missing = []
+        for name, path_or_status in prerequisites:
+            if isinstance(path_or_status, bool):
+                if not path_or_status:
+                    missing.append(name)
+            elif isinstance(path_or_status, str):
+                if not os.path.exists(path_or_status):
+                    missing.append(name)
         if missing:
             st.warning(f"⚠️ Missing: {', '.join(missing)}")
             return
@@ -818,17 +848,20 @@ class InstagramEngagementApp:
         st.markdown("### 📋 Results Visualization")
         
         # Check available outputs
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         available_outputs = {
             "Preprocessed Data": "outputs/preprocessed_data.csv",
-            "High-Value Followers": "outputs/high_value_followers.json",
+            "High-Value Followers": check_high_value_data_exists(),
             "Sentiment Scores": "outputs/sentiment_scores.json",
             "Model Metrics": "outputs/metrics.json",
             "User Profiles": "outputs/profiles.json",
             "Guidelines": "outputs/guidelines.json"
         }
         
-        existing_outputs = {name: path for name, path in available_outputs.items() 
-                          if os.path.exists(path)}
+        existing_outputs = {name: (path if isinstance(path, str) else True) 
+                          for name, path in available_outputs.items() 
+                          if (os.path.exists(path) if isinstance(path, str) else path)}
         
         if not existing_outputs:
             st.warning("⚠️ No outputs available for visualization!")
@@ -1036,8 +1069,8 @@ class InstagramEngagementApp:
     def show_follower_distribution_viz(self):
         """Show follower distribution visualizations"""
         try:
-            with open("outputs/high_value_followers.json", "r") as f:
-                followers = json.load(f)
+            from src.utils.high_value_utils import get_consolidated_high_value_followers
+            followers = get_consolidated_high_value_followers()
             
             if not followers:
                 st.warning("⚠️ No high-value followers found.")

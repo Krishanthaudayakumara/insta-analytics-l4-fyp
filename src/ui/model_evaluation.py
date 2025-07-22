@@ -33,8 +33,8 @@ class ModelEvaluationComponent(BaseUIComponent):
         # Evaluation metrics selection
         metrics_to_show = st.multiselect(
             "Select Evaluation Metrics:",
-            ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"],
-            default=["Accuracy", "F1-Score", "ROC-AUC"]
+            ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC", "R2 Score", "RMSE", "MAE", "MAPE"],
+            default=["Accuracy", "F1-Score", "ROC-AUC", "R2 Score", "RMSE"]
         )
         
         # Evaluate button
@@ -54,6 +54,9 @@ class ModelEvaluationComponent(BaseUIComponent):
                     # Show evaluation results
                     self._show_evaluation_results(evaluation_results, "new")
                     
+                    # Show keyword/hashtag recommendations if available
+                    self._show_keyword_recommendations()
+                
                 except Exception as e:
                     st.error(f"❌ Error during evaluation: {str(e)}")
         
@@ -98,3 +101,20 @@ class ModelEvaluationComponent(BaseUIComponent):
             best_model = eval_df['F1-Score'].idxmax()
             best_score = eval_df.loc[best_model, 'F1-Score']
             st.success(f"🏆 Best Model: {best_model} (F1-Score: {best_score:.3f})")
+    
+    def _show_keyword_recommendations(self):
+        """Display recommended keywords/hashtags for future posts"""
+        import json
+        if os.path.exists("outputs/guidelines.json"):
+            with open("outputs/guidelines.json", "r") as f:
+                guidelines = json.load(f)
+            if "recommended_keywords" in guidelines:
+                st.subheader("Recommended Keywords for Future Posts")
+                st.write(guidelines["recommended_keywords"])
+            if "recommended_hashtags" in guidelines:
+                st.subheader("Recommended Hashtags for Future Posts")
+                st.write(guidelines["recommended_hashtags"])
+            if "guidelines" in guidelines:
+                st.subheader("Actionable Guidelines")
+                for g in guidelines["guidelines"]:
+                    st.write(f"- {g}")

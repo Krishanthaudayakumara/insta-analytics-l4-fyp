@@ -162,18 +162,17 @@ class LivePredictionComponent(BaseUIComponent):
         st.markdown("#### 🎯 Content Strategy Optimizer")
         
         # Load existing follower data
-        if os.path.exists("outputs/high_value_followers.json"):
-            with open("outputs/high_value_followers.json", "r") as f:
-                followers = json.load(f)
+        from src.utils.high_value_utils import get_consolidated_high_value_followers
+        followers = get_consolidated_high_value_followers()
+        
+        if followers:
+            selected_followers = st.multiselect(
+                "Select followers to optimize for:",
+                list(followers.keys())[:20],  # Show first 20
+                default=list(followers.keys())[:5]
+            )
             
-            if followers:
-                selected_followers = st.multiselect(
-                    "Select followers to optimize for:",
-                    list(followers.keys())[:20],  # Show first 20
-                    default=list(followers.keys())[:5]
-                )
-                
-                if selected_followers:
+            if selected_followers:
                     col1, col2 = st.columns(2)
                     
                     with col1:

@@ -189,7 +189,6 @@ class FollowerSelectionComponent(BaseUIComponent):
         """Show existing results for the selected account"""
         # Check for account-specific results
         account_results_file = f"outputs/high_value_followers_{selected_owner}.json"
-        general_results_file = "outputs/high_value_followers.json"
         
         if os.path.exists(account_results_file):
             try:

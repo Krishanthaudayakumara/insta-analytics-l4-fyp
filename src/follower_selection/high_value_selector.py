@@ -484,11 +484,7 @@ class HighValueFollowerSelector:
         with open(account_output_path, 'w') as f:
             json.dump(results, f, indent=2)
         
-        # Also save to general location for backward compatibility
-        with open("outputs/high_value_followers.json", 'w') as f:
-            json.dump(high_value_followers, f, indent=2)
-        
-        self.logger.info(f"Results saved to {account_output_path} and outputs/high_value_followers.json")
+        self.logger.info(f"Results saved to {account_output_path}")
 
     def get_available_accounts(self, data):
         """Get list of available owner_ids in the dataset with usernames"""

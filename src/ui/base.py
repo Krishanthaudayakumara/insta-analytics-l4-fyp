@@ -42,7 +42,17 @@ class BaseUIComponent:
     
     def show_prerequisites_warning(self, prerequisites):
         """Show warning for missing prerequisites"""
-        missing = [name for name, path in prerequisites if not os.path.exists(path)]
+        missing = []
+        for name, path_or_status in prerequisites:
+            if isinstance(path_or_status, bool):
+                if not path_or_status:
+                    missing.append(name)
+            elif isinstance(path_or_status, str):
+                if not os.path.exists(path_or_status):
+                    missing.append(name)
+            else:
+                missing.append(name)  # Unknown type, assume missing
+        
         if missing:
             st.warning(f"⚠️ Missing: {', '.join(missing)}")
             return True
@@ -89,9 +99,11 @@ class UIUtils:
         """Show pipeline execution status in sidebar"""
         st.sidebar.markdown("### 📋 Pipeline Status")
         
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         statuses = {
             "Data Preprocessed": os.path.exists("outputs/preprocessed_data.csv"),
-            "High-Value Followers": os.path.exists("outputs/high_value_followers.json"),
+            "High-Value Followers": check_high_value_data_exists(),
             "Sentiment Analysis": os.path.exists("outputs/sentiment_scores.json"),
             "Models Trained": os.path.exists("outputs/rf_model.pkl"),
             "Models Evaluated": os.path.exists("outputs/metrics.json"),

@@ -20,17 +20,20 @@ class VisualizationComponent(BaseUIComponent):
         st.markdown("### 📋 Results Visualization")
         
         # Check available outputs
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         available_outputs = {
             "Preprocessed Data": "outputs/preprocessed_data.csv",
-            "High-Value Followers": "outputs/high_value_followers.json",
+            "High-Value Followers": check_high_value_data_exists(),
             "Sentiment Scores": "outputs/sentiment_scores.json",
             "Model Metrics": "outputs/metrics.json",
             "User Profiles": "outputs/profiles.json",
             "Guidelines": "outputs/guidelines.json"
         }
         
-        existing_outputs = {name: path for name, path in available_outputs.items() 
-                          if os.path.exists(path)}
+        existing_outputs = {name: (path if isinstance(path, str) else True) 
+                          for name, path in available_outputs.items() 
+                          if (os.path.exists(path) if isinstance(path, str) else path)}
         
         if not existing_outputs:
             st.warning("⚠️ No outputs available for visualization!")
@@ -238,8 +241,8 @@ class VisualizationComponent(BaseUIComponent):
     def _show_follower_distribution_viz(self):
         """Show follower distribution visualizations"""
         try:
-            with open("outputs/high_value_followers.json", "r") as f:
-                followers = json.load(f)
+            from src.utils.high_value_utils import get_consolidated_high_value_followers
+            followers = get_consolidated_high_value_followers()
             
             if not followers:
                 st.warning("⚠️ No high-value followers found.")

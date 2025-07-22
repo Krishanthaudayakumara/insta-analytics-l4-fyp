@@ -1,5 +1,5 @@
 """
-Model Training UI Component
+Model Training Component
 Handles ML model training interface
 """
 
@@ -17,9 +17,11 @@ class ModelTrainingComponent(BaseUIComponent):
         st.markdown("### 🤖 Advanced ML Model Training")
         
         # Check prerequisites
+        from src.utils.high_value_utils import check_high_value_data_exists
+        
         prerequisites = [
             ("Preprocessed Data", "outputs/preprocessed_data.csv"),
-            ("High-Value Followers", "outputs/high_value_followers.json"),
+            ("High-Value Followers", check_high_value_data_exists()),
             ("Sentiment Scores", "outputs/sentiment_scores.json")
         ]
         
@@ -28,19 +30,19 @@ class ModelTrainingComponent(BaseUIComponent):
         
         # Model selection
         st.markdown("#### 🎯 Model Selection")
-        
         col1, col2 = st.columns(2)
         with col1:
             models_to_train = st.multiselect(
                 "Select Models to Train:",
-                ["Random Forest", "XGBoost", "LightGBM", "TabNet", "GNN", "BERT"],
-                default=["Random Forest", "XGBoost", "LightGBM"]
+                ["Random Forest", "XGBoost", "LightGBM", "TabNet", "GNN", "BERT", "Linear Regression", "Ridge Regression"],
+                default=["Random Forest", "XGBoost", "LightGBM", "Linear Regression", "Ridge Regression"]
             )
-        
         with col2:
             target_variable = st.selectbox(
                 "Target Variable:",
-                ["engagement_probability", "comment_likelihood", "like_probability"]
+                [
+                    "engagement_rate", "sentiment_weighted_engagement", "comment_count", "like_count", "comment_likelihood", "engagement_score"
+                ]
             )
         
         # Training parameters
@@ -63,7 +65,9 @@ class ModelTrainingComponent(BaseUIComponent):
         st.markdown("#### Owner Selection & Multimodal Training")
         owner_ids = [None] + [f.split('_')[-1].split('.')[0] for f in os.listdir("outputs") if f.startswith("high_value_followers_")]
         owner_id = st.selectbox("Select Owner (user-specific or All)", owner_ids, format_func=lambda x: "All" if x is None else str(x))
+        st.caption("Select a specific owner for personalized engagement prediction, or 'All' for general dataset mode.")
         use_multimodal = st.checkbox("Use Multimodal (BERT + TabNet/GNN)", value=True)
+        st.caption("Multimodal combines text, graph, and tabular features for advanced prediction.")
         
         # Training button
         if st.button("🚀 Train Models", type="primary"):
@@ -80,21 +84,13 @@ class ModelTrainingComponent(BaseUIComponent):
                         optimize_hyperparams=optimize_hyperparams,
                         n_trials=n_trials if optimize_hyperparams else None
                     )
-                    
                     st.success("✅ Model training completed!")
-                    
                     # Show training results
                     self._show_training_results(results)
-                    
-                    # Show model comparison chart
-                    if os.path.exists("outputs/model_comparison.json"):
-                        import json
-                        with open("outputs/model_comparison.json", "r") as f:
-                            comp = json.load(f)
-                        metrics = {k: v.get("f1_score", 0) for k, v in comp.items()}
-                        fig = px.bar(x=list(metrics.keys()), y=list(metrics.values()), title="Model F1-Score Comparison")
-                        st.plotly_chart(fig, use_container_width=True)
-                
+                    # Show model comparison chart and actionable insights
+                    self._show_model_comparison_and_insights()
+                    # Show keyword/hashtag recommendations if available
+                    self._show_keyword_recommendations()
                 except Exception as e:
                     st.error(f"❌ Error during training: {str(e)}")
         
@@ -140,3 +136,58 @@ class ModelTrainingComponent(BaseUIComponent):
             st.info(f"📊 Existing models: {len(existing_models)}")
             for model in existing_models:
                 st.write(f"- {os.path.basename(model)}")
+    
+    def _show_model_comparison_and_insights(self):
+        """Display model comparison, actionable recommendations, and insights"""
+        import json
+        # Model comparison
+        if os.path.exists("outputs/model_comparison.json"):
+            with open("outputs/model_comparison.json", "r") as f:
+                comp = json.load(f)
+            metrics = {k: v.get("f1_score", 0) for k, v in comp.items()}
+            fig = px.bar(x=list(metrics.keys()), y=list(metrics.values()), title="Model F1-Score Comparison")
+            st.plotly_chart(fig, use_container_width=True)
+            # Show top features and confusion matrices
+            for model, data in comp.items():
+                st.subheader(f"{model} Insights")
+                if "top_features" in data:
+                    st.write("Top Features:", data["top_features"])
+                if "confusion_matrix" in data:
+                    st.write("Confusion Matrix:", data["confusion_matrix"])
+                if "recommendations" in data:
+                    st.write("Recommendations:", data["recommendations"])
+        # Predictions
+        if os.path.exists("outputs/predictions.json"):
+            with open("outputs/predictions.json", "r") as f:
+                preds = json.load(f)
+            st.subheader("Predictions")
+            st.write(preds)
+        # Profiles
+        if os.path.exists("outputs/profiles.json"):
+            with open("outputs/profiles.json", "r") as f:
+                profiles = json.load(f)
+            st.subheader("Profile Insights")
+            st.write(profiles)
+        # Guidelines
+        if os.path.exists("outputs/guidelines.json"):
+            with open("outputs/guidelines.json", "r") as f:
+                guidelines = json.load(f)
+            st.subheader("Actionable Guidelines")
+            st.write(guidelines)
+    
+    def _show_keyword_recommendations(self):
+        """Display recommended keywords/hashtags for future posts"""
+        import json
+        if os.path.exists("outputs/guidelines.json"):
+            with open("outputs/guidelines.json", "r") as f:
+                guidelines = json.load(f)
+            if "recommended_keywords" in guidelines:
+                st.subheader("Recommended Keywords for Future Posts")
+                st.write(guidelines["recommended_keywords"])
+            if "recommended_hashtags" in guidelines:
+                st.subheader("Recommended Hashtags for Future Posts")
+                st.write(guidelines["recommended_hashtags"])
+            if "guidelines" in guidelines:
+                st.subheader("Actionable Guidelines")
+                for g in guidelines["guidelines"]:
+                    st.write(f"- {g}")
