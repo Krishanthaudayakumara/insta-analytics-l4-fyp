@@ -69,6 +69,17 @@ class ModelTrainingComponent(BaseUIComponent):
         use_multimodal = st.checkbox("Use Multimodal (BERT + TabNet/GNN)", value=True)
         st.caption("Multimodal combines text, graph, and tabular features for advanced prediction.")
         
+        # Feature toggles
+        st.markdown("#### Feature Toggles")
+        use_sentiment = st.checkbox("Include Sentiment-Weighted Engagement", value=True)
+        use_hashtags = st.checkbox("Include Hashtag Features", value=True)
+        use_emoji = st.checkbox("Include Emoji Features", value=True)
+        feature_toggles = {
+            'sentiment_weighted_engagement': use_sentiment,
+            'hashtags': use_hashtags,
+            'emoji': use_emoji
+        }
+        
         # Training button
         if st.button("🚀 Train Models", type="primary"):
             with st.spinner("Training models... This may take several minutes"):
@@ -77,12 +88,13 @@ class ModelTrainingComponent(BaseUIComponent):
                         owner_id=owner_id,
                         use_multimodal=use_multimodal,
                         models=models_to_train,
-                        target=target_variable,
+                        target=target_variable if not use_sentiment else "sentiment_weighted_engagement",
                         test_size=test_size,
                         random_state=random_state,
                         cv_folds=cv_folds if cross_validation else None,
                         optimize_hyperparams=optimize_hyperparams,
-                        n_trials=n_trials if optimize_hyperparams else None
+                        n_trials=n_trials if optimize_hyperparams else None,
+                        feature_toggles=feature_toggles
                     )
                     st.success("✅ Model training completed!")
                     # Show training results
@@ -91,6 +103,20 @@ class ModelTrainingComponent(BaseUIComponent):
                     self._show_model_comparison_and_insights()
                     # Show keyword/hashtag recommendations if available
                     self._show_keyword_recommendations()
+                    # Show recommended keywords/phrases
+                    import json
+                    if os.path.exists("outputs/guidelines.json"):
+                        with open("outputs/guidelines.json", "r") as f:
+                            guidelines = json.load(f)
+                        if "recommended_keywords" in guidelines:
+                            st.subheader("Recommended Keywords for Future Posts")
+                            st.write(guidelines["recommended_keywords"])
+                        if "caption_phrases" in guidelines:
+                            st.subheader("Recommended Caption Phrases")
+                            st.write(guidelines["caption_phrases"])
+                        if "recommended_hashtags" in guidelines:
+                            st.subheader("Recommended Hashtags")
+                            st.write(guidelines["recommended_hashtags"])
                 except Exception as e:
                     st.error(f"❌ Error during training: {str(e)}")
         

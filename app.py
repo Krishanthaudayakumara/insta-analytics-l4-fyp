@@ -18,26 +18,27 @@ import joblib
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import core modules
-from preprocessing.data_processor import DataProcessor
-from preprocessing.clustered_data_processor import ClusteredDataProcessor
-from follower_selection.high_value_selector import HighValueFollowerSelector
-from sentiment_analysis.bert_analyzer import BERTSentimentAnalyzer
-from models.model_trainer import ModelTrainer
-from evaluation.model_evaluator import ModelEvaluator
-from profiling.profile_generator import ProfileGenerator
+from src.preprocessing.data_processor import DataProcessor
+from src.preprocessing.clustered_data_processor import ClusteredDataProcessor
+from src.follower_selection.high_value_selector import HighValueFollowerSelector
+from src.sentiment_analysis.bert_analyzer import BERTSentimentAnalyzer
+from src.models.model_trainer import ModelTrainer
+from src.evaluation.model_evaluator import ModelEvaluator
+from src.profiling.profile_generator import ProfileGenerator
 
 # Import UI components
-from ui.base import BaseUIComponent
-from ui.overview import OverviewComponent
-from ui.preprocessing import PreprocessingComponent
-from ui.follower_selection import FollowerSelectionComponent
-from ui.dataset_analysis import DatasetAnalysisComponent
-from ui.sentiment_analysis import SentimentAnalysisComponent
-from ui.model_training import ModelTrainingComponent
-from ui.model_evaluation import ModelEvaluationComponent
-from ui.profile_generation import ProfileGenerationComponent
-from ui.visualization import VisualizationComponent
-from ui.live_prediction import LivePredictionComponent
+from src.ui.base import BaseUIComponent
+from src.ui.overview import OverviewComponent
+from src.ui.preprocessing import PreprocessingComponent
+from src.ui.follower_selection import FollowerSelectionComponent
+from src.ui.dataset_analysis import DatasetAnalysisComponent
+from src.ui.sentiment_analysis import SentimentAnalysisComponent
+from src.ui.model_training import ModelTrainingComponent
+from src.ui.model_evaluation import ModelEvaluationComponent
+from src.ui.profile_generation import ProfileGenerationComponent
+from src.ui.visualization import VisualizationComponent
+from src.ui.live_prediction import LivePredictionComponent
+from src.ui.feature_engineering import FeatureEngineeringComponent
 
 # Configure page
 st.set_page_config(
@@ -111,6 +112,7 @@ class ModularInstagramEngagementApp:
         self.profile_generation = ProfileGenerationComponent(self)
         self.visualization = VisualizationComponent(self)
         self.live_prediction = LivePredictionComponent(self)
+        self.feature_engineering = FeatureEngineeringComponent(self)
         
         # Page configuration
         self.pages = {
@@ -123,7 +125,8 @@ class ModularInstagramEngagementApp:
             "📈 Evaluate Models": self.model_evaluation,
             "👤 Generate Profiles": self.profile_generation,
             "📋 Visualize Results": self.visualization,
-            "🔮 Live Predictions": self.live_prediction
+            "🔮 Live Predictions": self.live_prediction,
+            "🛠️ Feature Engineering": self.feature_engineering
         }
     
     def main(self):
@@ -245,7 +248,8 @@ class ModularInstagramEngagementApp:
                 "📈 Evaluate Models": "Evaluate and compare model performance",
                 "👤 Generate Profiles": "Generate user engagement profiles",
                 "📋 Visualize Results": "Visualize analysis results and insights",
-                "🔮 Live Predictions": "Real-time engagement predictions and optimization"
+                "🔮 Live Predictions": "Real-time engagement predictions and optimization",
+                "🛠️ Feature Engineering": "Aggregate sentiment and engagement features at the post level for modeling"
             }
             
             if selected_page in component_descriptions:
