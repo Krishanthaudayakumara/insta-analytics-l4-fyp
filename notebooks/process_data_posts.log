@@ -1,8 +1,0 @@
-2025-02-19 15:10:39,387 - INFO - Starting data processing
-2025-02-19 15:10:50,955 - INFO - Extracted data from 14888 posts from 606 users
-2025-02-19 15:11:01,206 - INFO - Starting data processing
-2025-02-19 15:11:01,697 - INFO - Extracted data from 1068 posts from 50 users
-2025-02-19 15:11:27,533 - INFO - Finished processing. Final DataFrame shape: (87913, 14)
-2025-02-19 15:14:51,672 - INFO - Starting data processing
-2025-02-19 15:14:52,618 - INFO - Extracted data from 2362 posts from 100 users
-2025-02-19 15:16:10,271 - INFO - Finished processing. Final DataFrame shape: (264011, 14)

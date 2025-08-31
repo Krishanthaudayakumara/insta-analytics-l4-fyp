@@ -1,596 +1,223 @@
-# Instagram User Behavior Analysis Dashboard - Documentation
+# Instagram User Behavior Analysis: ML-Driven Personalized Engagement Modeling
 
-## Table of Contents
-- [Project Overview](#project-overview)
-- [System Architecture](#system-architecture)
-- [Installation & Setup](#installation--setup)
-- [API Reference](#api-reference)
-- [User Guide](#user-guide)
-- [Developer Guide](#developer-guide)
-- [Configuration](#configuration)
-- [Troubleshooting](#troubleshooting)
+## 🎯 Project Overview
+**Title:** Instagram User Behavior Analysis: Machine Learning-Driven Personalized Engagement Modeling for High-Value Followers
 
----
+**Objective:** Implement a comprehensive system to create individual engagement profiles for high-value Instagram followers, predict engagement likelihood, and provide content strategy guidelines using advanced ML models.
+
+## ✨ Key Features
+- **🎯 Individual Engagement Profiles**: Granular profiles for high-value followers (top 10% by engagement/influence)
+- **🤖 Advanced ML Models**: Random Forest, XGBoost, LightGBM, TabNet, GNN, BERT
+- **💭 Sentiment-Engagement Integration**: BERT-based sentiment analysis combined with ML models
+- **📊 Interactive Streamlit Dashboard**: Complete web interface for all pipelines
+- **⚡ Real-time Analysis**: Live engagement prediction and profile generation
+- **📈 Comprehensive Visualization**: Advanced plots and performance metricsUser Behavior Analysis: ML-Driven Personalized Engagement Modeling
 
 ## Project Overview
+**Title:** Instagram User Behavior Analysis: Machine Learning-Driven Personalized Engagement Modeling for High-Value Followers
 
-The Instagram User Behavior Analysis Dashboard is a comprehensive machine learning application designed to analyze Instagram user behavior patterns, predict engagement metrics, and provide actionable insights through an interactive web interface.
+**Objective:** Implement a system to create individual engagement profiles for high-value Instagram followers, predict engagement likelihood, and provide content strategy guidelines using advanced ML models.
 
-### Key Features
-- **Data Processing Pipeline**: Automated data extraction, cleaning, and preprocessing
-- **Machine Learning Models**: Multiple algorithms for engagement prediction
-- **Interactive Dashboard**: Streamlit-based web interface with real-time analytics
-- **Comprehensive Evaluation**: 15+ evaluation metrics for model performance
-- **Content Recommendations**: AI-powered post recommendation system
-- **Clustering Analysis**: User segmentation and behavior clustering
+## Key Features
+- **Individual Engagement Profiles**: Granular profiles for high-value followers (top 10% by engagement/influence)
+- **Advanced ML Models**: Random Forest, XGBoost, LightGBM, TabNet, GNN, BERT
+- **Sentiment-Engagement Integration**: BERT-based sentiment analysis combined with ML models
+- **Interactive Streamlit Dashboard**: Web interface for all pipelines
 
-### Technology Stack
-- **Backend**: Python 3.10+
-- **Frontend**: Streamlit
-- **Machine Learning**: scikit-learn, pandas, numpy
-- **Visualization**: Plotly, matplotlib
-- **Data Storage**: CSV files, JSON configurations, Joblib models
-- **Web Framework**: Streamlit with custom components
-
----
-
-## System Architecture
-
+## Project Structure
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Web Interface (Streamlit)               │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   Dashboard  │  │  Evaluation  │  │ Recommender  │      │
-│  │   (app.py)   │  │  Dashboard   │  │   System     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-├─────────────────────────────────────────────────────────────┤
-│                    Core Analysis Modules                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Engagement  │  │  Sentiment   │  │  Clustering  │      │
-│  │  Prediction  │  │   Analysis   │  │ Segmentation │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-├─────────────────────────────────────────────────────────────┤
-│                   Data Processing Layer                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Data Extract │  │  Data Clean  │  │ Data Merge   │      │
-│  │ (process_*)  │  │ (clean_data) │  │(merge_influ.)│      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-├─────────────────────────────────────────────────────────────┤
-│                      Data Storage                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Raw Data    │  │   Models     │  │ Evaluations  │      │
-│  │    (CSV)     │  │  (.joblib)   │  │   (JSON)     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
+├── data/                          # Dataset files
+├── src/                          # Source code modules
+│   ├── preprocessing/            # Data preprocessing
+│   ├── follower_selection/       # High-value follower identification
+│   ├── sentiment_analysis/       # BERT sentiment analysis
+│   ├── models/                   # ML model implementations
+│   ├── evaluation/               # Model evaluation
+│   ├── profiling/                # Profile generation
+│   └── ui/                       # Modular UI components
+├── outputs/                      # Generated outputs
+├── app.py                        # Main modular Streamlit application
+├── app_legacy.py                 # Legacy enhanced application
+└── requirements.txt              # Dependencies
 ```
 
-### File Structure
-```
-fyp-l4/
-├── app.py                              # Main Streamlit application
-├── model_evaluation_dashboard.py       # Model evaluation interface
-├── requirements.txt                    # Python dependencies
-├── README.md                          # Project documentation
-├── analysis/                          # Core ML modules
-│   ├── engagement_prediction.py       # ML models and evaluation
-│   ├── sentiment_analysis.py          # Text sentiment analysis
-│   └── clustering_segmentation.py     # User clustering
-├── recommendations/                   # Recommendation system
-│   └── post_recommender.py           # Content recommendation
-├── scripts/                          # Data processing scripts
-│   ├── process_data_posts.py         # Data extraction
-│   ├── clean_data.py                 # Data cleaning
-│   └── merge_with_influencers.py     # Data merging
-├── visualizations/                   # Chart and plot modules
-│   └── engagement_trends.py          # Trend visualization
-├── data/                             # Data storage
-│   ├── processed_data/               # Cleaned datasets
-│   └── clustered_data/               # Clustered results
-├── outputs/                          # Model outputs
-│   ├── model_*.joblib                # Trained models
-│   ├── model_evaluation_*.json       # Evaluation results
-│   └── *.png                         # Generated visualizations
-└── docs/                             # Documentation
-    └── *.md                          # Documentation files
-```
-
----
-
-## Installation & Setup
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.10 or higher
-- pip package manager
-- Git (for cloning repository)
+- Python 3.8+
+- At least 4GB RAM for ML models
+- Internet connection for BERT model downloads
 
-### Installation Steps
+### Installation & Launch
+1. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
 
-1. **Clone Repository**
-   ```bash
-   git clone <repository-url>
-   cd fyp-l4
-   ```
+2. **Run the Streamlit application:**
+```bash
+# Main modular application (RECOMMENDED)
+streamlit run app.py
 
-2. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Alternative: Legacy enhanced application
+streamlit run app_legacy.py
 
-3. **Verify Installation**
-   ```bash
-   python3 -c "import streamlit; print('Streamlit installed successfully')"
-   ```
+# Using launcher script with options
+python scripts/launch_app.py --app main    # Launches modular app
+python scripts/launch_app.py --app legacy  # Launches legacy app
+```
 
-4. **Run Application**
-   ```bash
-   streamlit run app.py
-   ```
+3. **Access the application:**
+   - Open your browser to `http://localhost:8501`
+   - The app will automatically launch
 
-### Required Dependencies
-- streamlit>=1.28.0
-- pandas>=1.5.0
-- numpy>=1.21.0
-- scikit-learn>=1.1.0
-- plotly>=5.0.0
-- joblib>=1.2.0
-- matplotlib>=3.5.0
-- seaborn>=0.11.0
+## 🎮 Application Features
 
----
+### 📊 Dashboard Sections
+1. **Overview**: Project introduction and dataset summary
+2. **Data Preprocessing**: Load and clean Instagram data
+3. **High-Value Follower Selection**: Identify top 10% followers using K-Means clustering
+4. **Sentiment Analysis**: BERT-based comment sentiment analysis
+5. **Model Training**: Train 6 different ML models with hyperparameter optimization
+6. **Model Evaluation**: Compare models with comprehensive metrics
+7. **Profile Generation**: Create individual engagement profiles
+8. **Visualization**: Interactive charts and insights
 
-## API Reference
+### 🔧 Advanced Features
+- **Multi-Model Support**: Random Forest, XGBoost, LightGBM, TabNet, GNN, BERT
+- **Feature Engineering**: Automatic creation of engagement and influence scores
+- **Hyperparameter Optimization**: Grid search and cross-validation
+- **Real-time Predictions**: Live engagement probability calculation
+- **Export Capabilities**: Download profiles and visualizations
+
+## 📁 Dataset Requirements
+
+### Required Columns
+- `media_type`: Content type (photo/video/album)
+- `Category`: Content category (fashion/travel/food/lifestyle/tech)
+- `likes`: Post likes count
+- `comments_count`: Number of comments
+- `comment_text`: Comment content for sentiment analysis
+- `comment_owner_username`: Commenter username
+- `comment_likes`: Comment likes count
+- `#Followers`: Follower count
+- `comment_owner_username`: Follower identification
+- `comment_likes`: Engagement frequency
+- `#Followers`: Influence scoring
+
+### Sample Data Format
+```csv
+post_id,owner_id,likes,comments_count,media_type,Category,comment_text,comment_owner_username,comment_likes,#Followers
+1997412906295247760,2713844557,233,6,photo,travel,Great post!,user123,1,20448
+```
+
+## 🔄 Current System Status
+
+### ✅ Completed Components
+- **🏗️ Clean Project Structure**: Modular architecture with src/ directory
+- **📊 Streamlit Application**: Full web interface running on localhost:8501
+- **🔧 Data Processing**: Advanced preprocessing with feature engineering
+- **🎯 Follower Selection**: K-Means clustering for top 10% identification
+- **💭 Sentiment Analysis**: BERT/RoBERTa integration for comment analysis
+- **🤖 ML Models**: 6 advanced models with hyperparameter optimization
+- **📈 Evaluation Framework**: Comprehensive metrics and visualizations
+- **👤 Profile Generation**: Individual user engagement profiles
+- **📦 Dependencies**: All required packages installed and verified
+
+### 🚀 Ready for Use
+The system is **fully operational** and ready for:
+- Real Instagram dataset analysis
+- High-value follower identification
+- Engagement prediction modeling
+- Personalized content strategy generation
+
+## 🛠️ Technical Architecture
 
 ### Core Modules
+1. **DataProcessor** (`src/preprocessing/`): Data cleaning and feature engineering
+2. **HighValueFollowerSelector** (`src/follower_selection/`): K-Means clustering
+3. **BERTSentimentAnalyzer** (`src/sentiment_analysis/`): Transformer-based sentiment
+4. **ModelTrainer** (`src/models/`): Multi-model training pipeline
+5. **ModelEvaluator** (`src/evaluation/`): Performance metrics and comparison
+6. **ProfileGenerator** (`src/profiling/`): Individual profile creation
 
-#### `analysis/engagement_prediction.py`
-Main module for machine learning model training and evaluation.
-
-**Key Functions:**
-- `calculate_comprehensive_metrics(y_true, y_pred, model_name)`: Calculate 15+ evaluation metrics
-- `evaluate_model_with_cross_validation(model, X, y, cv_folds=5)`: Perform cross-validation
-- `save_evaluation_results(results, target_type)`: Save evaluation to JSON
-- `run()`: Main training pipeline execution
-
-**Classes:**
-- No specific classes, functional programming approach
-
-**Usage Example:**
-```python
-from analysis.engagement_prediction import calculate_comprehensive_metrics
-
-# Calculate metrics for model predictions
-metrics = calculate_comprehensive_metrics(
-    y_true=actual_values,
-    y_pred=predicted_values,
-    model_name="Random Forest"
-)
-print(f"R² Score: {metrics['R2_Score']}")
-print(f"RMSE: {metrics['RMSE']}")
+### Machine Learning Pipeline
+```
+Raw Data → Preprocessing → Feature Engineering → High-Value Selection
+    ↓
+Sentiment Analysis → Model Training → Evaluation → Profile Generation
 ```
 
-#### `model_evaluation_dashboard.py`
-Interactive dashboard for model evaluation and comparison.
+## 📊 Model Performance
+The system supports comprehensive model comparison with:
+- **Accuracy, Precision, Recall, F1-Score**
+- **ROC-AUC curves and confusion matrices**
+- **Feature importance analysis**
+- **Cross-validation results**
 
-**Key Functions:**
-- `load_evaluation_results(target_type)`: Load evaluation data from JSON
-- `create_evaluation_comparison_df(target_types)`: Create comparison DataFrame
-- `create_metrics_comparison_chart(df)`: Generate comparison visualizations
-- `show_model_evaluation_dashboard()`: Main dashboard function
+## 🎯 Use Cases
 
-**Usage Example:**
+### For Marketers
+- Identify high-value followers for targeted campaigns
+- Predict engagement likelihood for content optimization
+- Generate personalized content strategies
+
+### For Researchers
+- Analyze Instagram user behavior patterns
+- Study engagement prediction models
+- Evaluate sentiment-engagement correlations
+
+### For Businesses
+- Optimize influencer partnerships
+- Improve content strategy ROI
+- Enhance audience targeting
+
+## 🔧 Configuration
+
+### Model Parameters
+- **Random Forest**: n_estimators, max_depth, min_samples_split
+- **XGBoost**: learning_rate, max_depth, n_estimators
+- **LightGBM**: num_leaves, learning_rate, feature_fraction
+- **TabNet**: n_d, n_a, n_steps, gamma
+- **BERT**: Pre-trained transformers (bert-base-uncased, roberta-base)
+
+### System Requirements
+- **Memory**: 4GB+ RAM for ML models
+- **Storage**: 2GB+ for model weights and data
+- **GPU**: Optional for faster BERT inference
+
+## 📚 Documentation
+
+### API Reference
+Each module includes comprehensive docstrings and type hints for easy integration.
+
+### Example Usage
 ```python
-import model_evaluation_dashboard as med
+from src.preprocessing.data_processor import DataProcessor
+from src.models.model_trainer import ModelTrainer
 
-# Display the evaluation dashboard
-med.show_model_evaluation_dashboard()
+# Initialize components
+processor = DataProcessor()
+trainer = ModelTrainer()
+
+# Process data and train models
+processed_data = processor.process_data(raw_data)
+model = trainer.train_random_forest(X, y)
 ```
 
-#### `recommendations/post_recommender.py`
-Content-based recommendation system for Instagram posts.
+## 🎉 Getting Started Guide
 
-**Key Functions:**
-- `run(df)`: Main recommendation pipeline
-- Content similarity calculation using TF-IDF vectorization
-- Engagement-based ranking algorithm
-
-**Usage Example:**
-```python
-from recommendations.post_recommender import run
-
-# Generate recommendations
-recommendations = run(dataframe)
-```
-
-### Data Processing Modules
-
-#### `scripts/clean_data.py`
-Data cleaning and preprocessing utilities.
-
-**Key Functions:**
-- `clean_and_deduplicate(input_csv, output_csv)`: Clean and deduplicate data
-- Text normalization and standardization
-- Missing value handling
-
-#### `scripts/merge_with_influencers.py`
-Data merging and integration utilities.
-
-**Key Functions:**
-- `merge_datasets()`: Merge multiple data sources
-- Influencer data integration
-- Data consistency validation
+1. **Launch the App**: `streamlit run app.py`
+2. **Load Your Data**: Upload Instagram CSV file
+3. **Preprocess**: Clean and engineer features
+4. **Select Followers**: Identify high-value users
+5. **Analyze Sentiment**: Process comment sentiment
+6. **Train Models**: Compare ML algorithms
+7. **Generate Profiles**: Create individual insights
+8. **Export Results**: Download profiles and visualizations
 
 ---
 
-## User Guide
-
-### Getting Started
-
-1. **Launch Application**
-   ```bash
-   streamlit run app.py
-   ```
-
-2. **Access Dashboard**
-   Open browser and navigate to: `http://localhost:8501`
-
-3. **Upload Data**
-   - Use sidebar file uploader
-   - Or click "Preprocess Raw Data" for full pipeline
-
-### Main Features
-
-#### 📊 Data Analysis Dashboard
-- **Data Overview**: Statistics and data quality metrics
-- **Engagement Analysis**: User engagement patterns and trends
-- **Sentiment Analysis**: Post sentiment distribution and insights
-- **Clustering Results**: User segmentation and behavior groups
-
-#### 🎯 Model Performance Evaluation
-- **Overview Tab**: Key metrics summary and model status
-- **Detailed Metrics Tab**: Complete evaluation breakdown (15+ metrics)
-- **Performance Comparison**: Model-to-model analytics
-- **History Tab**: Training timeline and progress tracking
-
-#### 🎮 Interactive Training
-- **🎯 Train Engagement Models**: Full engagement prediction workflow
-- **👍💬 Train Likes/Comments Models**: Social metrics training
-- **🔄 Retrain All Models**: Complete system refresh
-- **🗑️ Clear All Evaluations**: Reset functionality
-
-#### 📈 Visualizations
-- Interactive charts and plots
-- Real-time data updates
-- Customizable view options
-- Export capabilities
-
-### Workflow Examples
-
-#### Training New Models
-1. Navigate to "🎯 Model Performance Evaluation"
-2. Click "🎯 Train Engagement Models"
-3. Monitor progress in real-time
-4. View results in dashboard tabs
-
-#### Comparing Model Performance
-1. Access "Performance Comparison" tab
-2. Select models to compare
-3. Analyze metrics side-by-side
-4. Export comparison results
-
-#### Generating Recommendations
-1. Load data in main dashboard
-2. Navigate to recommendations section
-3. View top recommended posts
-4. Analyze recommendation rationale
-
----
-
-## Developer Guide
-
-### Adding New Features
-
-#### Creating a New Analysis Module
-
-1. **Create Module File**
-   ```python
-   # analysis/new_analysis.py
-   import pandas as pd
-   import numpy as np
-   
-   def run(df):
-       """Main analysis function"""
-       # Your analysis logic here
-       return results
-   ```
-
-2. **Import in Main App**
-   ```python
-   # app.py
-   from analysis import new_analysis
-   
-   # Add to analysis section
-   if st.button("Run New Analysis"):
-       results = new_analysis.run(df)
-       st.write(results)
-   ```
-
-#### Adding New Evaluation Metrics
-
-1. **Extend Metrics Function**
-   ```python
-   # analysis/engagement_prediction.py
-   def calculate_comprehensive_metrics(y_true, y_pred, model_name="Model"):
-       # ...existing metrics...
-       
-       # Add new metric
-       new_metric = calculate_new_metric(y_true, y_pred)
-       
-       metrics.update({
-           'New_Metric': new_metric
-       })
-       
-       return metrics
-   ```
-
-2. **Update Dashboard Display**
-   ```python
-   # model_evaluation_dashboard.py
-   def display_detailed_metrics(results):
-       # ...existing displays...
-       
-       # Add new metric display
-       col_new = st.columns(1)[0]
-       with col_new:
-           st.metric("New Metric", f"{result['New_Metric']:.4f}")
-   ```
-
-### Code Standards
-
-#### Python Style Guide
-- Follow PEP 8 conventions
-- Use descriptive variable names
-- Add comprehensive docstrings
-- Include type hints where appropriate
-
-#### Documentation Requirements
-- All public functions must have docstrings
-- Include parameter descriptions and return types
-- Provide usage examples for complex functions
-- Update documentation when adding features
-
-#### Testing Guidelines
-- Write unit tests for new functions
-- Test edge cases and error conditions
-- Validate data integrity
-- Performance testing for large datasets
-
-### Configuration Files
-
-#### `requirements.txt`
-```
-streamlit>=1.28.0
-pandas>=1.5.0
-numpy>=1.21.0
-scikit-learn>=1.1.0
-plotly>=5.0.0
-joblib>=1.2.0
-matplotlib>=3.5.0
-seaborn>=0.11.0
-```
-
-#### Environment Variables
-- `STREAMLIT_THEME`: UI theme configuration
-- `DATA_PATH`: Default data directory path
-- `MODEL_PATH`: Model storage directory
-- `LOG_LEVEL`: Logging verbosity level
-
----
-
-## Configuration
-
-### Application Settings
-
-#### Streamlit Configuration
-```python
-# app.py
-st.set_page_config(
-    page_title="Instagram User Behavior Analysis",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-```
-
-#### Model Parameters
-```python
-# analysis/engagement_prediction.py
-MODEL_CONFIGS = {
-    'random_forest': {
-        'n_estimators': 100,
-        'random_state': 42,
-        'max_depth': 10
-    },
-    'linear_regression': {
-        'fit_intercept': True
-    },
-    'ridge': {
-        'alpha': 1.0,
-        'random_state': 42
-    }
-}
-```
-
-### Data Configuration
-
-#### File Paths
-```python
-DATA_PATHS = {
-    'raw_data': 'data/raw/',
-    'processed_data': 'data/processed_data/',
-    'clustered_data': 'data/clustered_data/',
-    'models': 'outputs/',
-    'evaluations': 'outputs/'
-}
-```
-
-#### Data Schema
-```python
-REQUIRED_COLUMNS = [
-    'post_id', 'user_id', 'caption', 'hashtags',
-    'likes', 'comments_count', 'engagement_rate',
-    'post_type', 'timestamp'
-]
-```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. Module Import Errors
-**Problem**: `ModuleNotFoundError` when importing custom modules
-
-**Solution**:
-```bash
-# Ensure correct Python path
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-
-# Or run from project root
-cd /path/to/fyp-l4
-python3 -m streamlit run app.py
-```
-
-#### 2. Data Loading Issues
-**Problem**: CSV file not found or corrupt
-
-**Solution**:
-```python
-# Check file existence
-import os
-if not os.path.exists('data/processed_data/cleaned_merged_user_post_data.csv'):
-    print("Data file not found. Run preprocessing pipeline.")
-    
-# Validate data format
-df = pd.read_csv('data.csv')
-print(f"Columns: {df.columns.tolist()}")
-print(f"Shape: {df.shape}")
-```
-
-#### 3. Model Training Failures
-**Problem**: sklearn model training errors
-
-**Solution**:
-```python
-# Check data types and missing values
-print(df.dtypes)
-print(df.isnull().sum())
-
-# Handle missing values
-df = df.dropna()
-
-# Ensure numeric features
-numeric_features = df.select_dtypes(include=[np.number]).columns
-```
-
-#### 4. Dashboard Display Issues
-**Problem**: Streamlit components not rendering
-
-**Solution**:
-```bash
-# Clear Streamlit cache
-streamlit cache clear
-
-# Update Streamlit
-pip install --upgrade streamlit
-
-# Check browser compatibility
-# Use Chrome/Firefox for best experience
-```
-
-### Performance Optimization
-
-#### Memory Management
-```python
-# Use chunking for large datasets
-chunk_size = 10000
-for chunk in pd.read_csv('large_file.csv', chunksize=chunk_size):
-    process_chunk(chunk)
-
-# Clear unused variables
-del large_dataframe
-import gc
-gc.collect()
-```
-
-#### Caching Strategies
-```python
-# Use Streamlit caching
-@st.cache_data
-def load_large_dataset():
-    return pd.read_csv('large_dataset.csv')
-
-# Cache model predictions
-@st.cache_data
-def predict_engagement(_model, features):
-    return model.predict(features)
-```
-
-### Logging and Debugging
-
-#### Enable Debug Logging
-```python
-import logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-```
-
-#### Streamlit Debug Mode
-```bash
-streamlit run app.py --logger.level=debug
-```
-
----
-
-## Support and Contributing
-
-### Getting Help
-- Check this documentation first
-- Review error logs in `logs/` directory
-- Search existing issues in project repository
-- Create new issue with detailed error information
-
-### Contributing Guidelines
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature-name`
-3. Follow code standards and add tests
-4. Update documentation as needed
-5. Submit pull request with detailed description
-
-### Development Setup
-```bash
-# Clone repository
-git clone <repo-url>
-cd fyp-l4
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install development dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Run tests
-python3 -m pytest tests/
-
-# Start development server
-streamlit run app.py --server.runOnSave=true
-```
-
----
-
-*Documentation generated: June 1, 2025*  
-*Version: 1.0.0*
+**Status**: ✅ **FULLY OPERATIONAL** - Ready for production use!  
+**Last Updated**: July 17, 2025  
+**Version**: 2.0 - Advanced ML Pipeline

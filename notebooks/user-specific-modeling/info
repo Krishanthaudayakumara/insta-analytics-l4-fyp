@@ -1,0 +1,95 @@
+I am working on a Machine Learning / AI project to analyze Instagram posts, predict engagement and provide recommendations using various features- based on User Behavioral Data ( user comment analysis ). The dataset I use is a merged dataset with post-level, comment-level, and follower-level information, enhanced with sentiment scores and high-value follower indicators.
+
+### Dataset Description:
+The dataset contains the following fields (columns):
+
+- post_id: Unique identifier of the Instagram post
+- owner_id: Owner user ID of the post
+- timestamp: UNIX timestamp of the post creation
+- likes: Number of likes on the post
+- comments_count: Number of comments on the post
+- caption: Text caption of the post
+- hashtags: Hashtags used in the post
+- location_id: Location identifier
+- media_type: Type of media (e.g., image, video)
+- username: Username of the post owner
+- shortcode: Instagram shortcode for the post URL
+- location: Location name
+- is_private: Boolean indicating if the account is private
+- is_verified: Boolean indicating if the account is verified
+- mentions: Users mentioned in the caption
+- Category: Category of the content (e.g., fashion, food)
+- #Followers, #Followees, #Posts: Owner’s follower/following/post counts
+- comment_text: Text of the comment on the post
+- comment_owner_username: Username of the commenter
+- comment_likes: Number of likes on the comment
+- comment_timestamp: Timestamp of the comment
+- caption_length: Length of the caption text in characters
+- num_hashtags: Number of hashtags in the caption
+- has_mention, has_url: Booleans if caption has mentions or URLs
+- follower_adjusted_likes, follower_adjusted_comments: Engagement metrics adjusted by followers
+- engagement_rate, hashtags_agg, engagement_frequency, influence_score, content_interaction, comment_engagement_ratio: Various engagement and influence metrics
+- comment_length: Length of comment text
+- has_emoji: Boolean if comment has emoji
+- category_beauty, category_family, ..., category_travel: Binary category flags
+- user_id_encoded: Encoded user ID feature
+- engagement_binary, engagement_probability: Engagement classification and prediction probabilities
+- sentiment, sentiment_confidence, sentiment_positive, sentiment_negative, sentiment_neutral: Sentiment analysis results per comment
+- is_high_value_follower: Boolean indicator if the commenter is a high-value follower
+- comment_likes_sum: Sum of likes on comments
+- sentiment_positive_post, sentiment_negative_post, sentiment_neutral_post, avg_comment_sentiment: Aggregated post-level sentiment scores
+- num_comments: Number of comments on the post
+- sentiment_weighted_engagement: Target variable representing engagement weighted by sentiment
+
+### Example Dataset Samples (CSV rows):
+(post_id,owner_id,timestamp,likes,comments_count,caption,hashtags,location_id,media_type,username,shortcode,location,is_private,is_verified,mentions,Category,#Followers,#Followees,#Posts,comment_text,comment_owner_username,comment_likes,comment_timestamp,caption_length,num_hashtags,has_mention,has_url,follower_adjusted_likes,follower_adjusted_comments,engagement_rate,hashtags_agg,engagement_frequency,influence_score,content_interaction,comment_engagement_ratio,comment_length,has_emoji,category_beauty,category_family,category_fashion,category_fitness,category_food,category_pet,category_travel,user_id_encoded,engagement_binary,engagement_probability,sentiment,sentiment_confidence,sentiment_positive,sentiment_negative,sentiment_neutral,is_high_value_follower,comment_likes_sum,sentiment_positive_post,sentiment_negative_post,sentiment_neutral_post,avg_comment_sentiment,num_comments,sentiment_weighted_engagement)
+
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,"Much love homie...",seussmace,1,1554290549,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,124,True,False,False,False,False,False,False,False,0,0,0.0,,,,,,False,5.0,0.4634516481061776
+
+... (add 2-3 more sample rows here as needed)
+
+---
+
+### Project Goals:
+- Predict the engagement on Instagram posts using features from the post, comments, follower characteristics, and sentiment analysis.
+- Use text embeddings from captions combined with engineered features for better prediction.
+- Leverage machine learning to build a regression model predicting sentiment-weighted engagement.
+- Interpret model predictions using SHAP values.
+- Visualize distributions, correlations, and all possible model evaluation metrics.
+- Come up with practical implementation like keyword recommendation for this user, or get inputs and predict sentiment weighted engagement or provide suggestions for high sentiment weighted engagement 
+
+
+
+---
+
+sample of the dataset - "post_id,owner_id,timestamp,likes,comments_count,caption,hashtags,location_id,media_type,username,shortcode,location,is_private,is_verified,mentions,Category,#Followers,#Followees,#Posts,comment_text,comment_owner_username,comment_likes,comment_timestamp,caption_length,num_hashtags,has_mention,has_url,follower_adjusted_likes,follower_adjusted_comments,engagement_rate,hashtags_agg,engagement_frequency,influence_score,content_interaction,comment_engagement_ratio,comment_length,has_emoji,category_beauty,category_family,category_fashion,category_fitness,category_food,category_pet,category_travel,user_id_encoded,engagement_binary,engagement_probability,sentiment,sentiment_confidence,sentiment_positive,sentiment_negative,sentiment_neutral,is_high_value_follower,comment_likes_sum,sentiment_positive_post,sentiment_negative_post,sentiment_neutral_post,avg_comment_sentiment,num_comments,sentiment_weighted_engagement
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,"Much love homie. I watch every video you drop here in Topeka, KS. Check out my raps on my page if you like rap. Much love ♥️",seussmace,1,1554290549,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,124,True,False,False,False,False,False,False,False,0,0,0.0,,,,,,False,5.0,0.4634516481061776,0.2112162078016748,0.3253321586052577,0.2522354403045028,6.0,1.513412641827017
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,🧡🌷🧡🌷💐🧡💜,next.oz,1,1554290640,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,7,True,False,False,False,False,False,False,False,0,0,0.0,positive,0.9545084834098816,0.9545084834098816,0.00649228785187006,0.03899920731782913,False,5.0,0.4634516481061776,0.2112162078016748,0.3253321586052577,0.2522354403045028,6.0,1.513412641827017
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,Best & Worst BBQ?,theunderachievers4ever,2,1554292448,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,17,True,False,False,False,False,False,False,False,0,0,0.0,neutral,0.7614110112190247,0.10792411118745804,0.1306648701429367,0.7614110112190247,False,5.0,0.4634516481061776,0.2112162078016748,0.3253321586052577,0.2522354403045028,6.0,1.513412641827017
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,Been watching your food review joints for a min now! Thanks for the content and how well it's being put together your new approach with the angles and commentating is awesome my guy. Double Salute! Looking for a Soul Food Joint try Esthers in MiamiFl on 27th ave!,lixcir,0,1554300671,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,263,True,False,False,False,False,False,False,False,0,0,0.0,,,,,,False,5.0,0.4634516481061776,0.2112162078016748,0.3253321586052577,0.2522354403045028,6.0,1.513412641827017
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,Ahhhh shit you in NY?,therealmakavelii,0,1554304985,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,21,True,False,False,False,False,False,False,False,0,0,0.0,negative,0.4651440978050232,0.07917539775371552,0.4651440978050232,0.4556805491447449,False,5.0,0.4634516481061776,0.2112162078016748,0.3253321586052577,0.2522354403045028,6.0,1.513412641827017
+2013855600297268748,215706556,1554290317,308,8,"In a World where folks rarely want to see you change, KEEP GETTIN' MONEY! #bagsecured",#bagsecured,770481406636913.0,image,officialdaymdrops,Bvypv-kplYM,Hill Country Barbecue Market,False,True,,other,53881,1426,12468,All day....this life is a blessing...finna max it out,andrewj.sims,1,1554317520,85,1,False,False,0.0,0.0,0.0,#bagsecured,0.0,0.0,0.0,0.0,53,True,False,False,False,False,False,False,False,0,0,0.0,positive,0.9791018962860107,0.9791018962860107,0.004995991010218859,0.015902183949947357,True,5.0,0.4634516481061776,0.2112162078016748,0.3253321586052577,0.2522354403045028,6.0,1.513412641827017
+1978695573540312242,215706556,1550098915,255,15,Say Goodbye to The Leader of the Golden Lords!! I'm about to take my FINAL FORM TONIGHT!!!!!!,,626398900884375.0,image,officialdaymdrops,Bt1vSP7ghSy,Ulta Beauty,False,True,,other,53881,1426,12468,Go green! 😂,mslaydeej,0,1550098978,93,1,False,False,0.0,0.0,0.0,,0.0,0.0,0.0,0.0,11,True,False,False,False,False,False,False,False,0,0,0.0,positive,0.7471123337745667,0.7471123337745667,0.016629274934530258,0.236258402466774,True,4.0,0.5509895745615164,0.0953434986478338,0.3536669207215309,0.4556460759136825,15.0,6.834691138705239
+1978695573540312242,215706556,1550098915,255,15,Say Goodbye to The Leader of the Golden Lords!! I'm about to take my FINAL FORM TONIGHT!!!!!!,,626398900884375.0,image,officialdaymdrops,Bt1vSP7ghSy,Ulta Beauty,False,True,,other,53881,1426,12468,Dam I wast first,spanish_kd_35,0,1550099084,93,1,False,False,0.0,0.0,0.0,,0.0,0.0,0.0,0.0,16,False,False,False,False,False,False,False,False,0,0,0.0,negative,0.5495092868804932,0.056393351405858994,0.5495092868804932,0.39409732818603516,False,4.0,0.5509895745615164,0.0953434986478338,0.3536669207215309,0.4556460759136825,15.0,6.834691138705239
+1978695573540312242,215706556,1550098915,255,15,Say Goodbye to The Leader of the Golden Lords!! I'm about to take my FINAL FORM TONIGHT!!!!!!,,626398900884375.0,image,officialdaymdrops,Bt1vSP7ghSy,Ulta Beauty,False,True,,other,53881,1426,12468,Yeah MR DROPS SUPERRRRROFFICIALLLLLL YOU ARE THE MAN,vinny_caru,0,1550099185,93,1,False,False,0.0,0.0,0.0,,0.0,0.0,0.0,0.0,52,False,False,False,False,False,False,False,False,0,0,0.0,positive,0.9584880471229553,0.9584880471229553,0.004389388952404261,0.03712249919772148,False,4.0,0.5509895745615164,0.0953434986478338,0.3536669207215309,0.4556460759136825,15.0,6.834691138705239
+""
+
+---
+
+Please assist me by providing insights, recommendations or best approach suggestions for this dataset and project approach.
+(remember sentiment datas should be excluded as input data, because using the sentiment data it is a mathematical eqation to figure out the sentiment weighted engagmennt, other post features could used, more oriented on caption and hashtag features,)
+
+
+Need Advanced Machine Learning / AI model architecture to predict sentiment weighted engagement based on the provided dataset like below:```plaintext
+Model Architecture:
+Input Layer (Multimodal)
+├── Text Branch (BERT + TF-IDF)
+├── Numerical Branch (Engineered Features)
+├── Categorical Branch (Embeddings)
+└── Temporal Branch (LSTM/GRU)
+    ↓
+Feature Fusion Layer
+    ↓
+Deep Neural Network / XGBoost / LightGBM
+    ↓
+Output: Sentiment Weighted Engagement

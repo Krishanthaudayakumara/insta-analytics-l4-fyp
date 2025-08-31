@@ -14,7 +14,6 @@ venv/
 *.pth
 *.json
 outputs/
-models/
 catboost_info/
 
 # OS files
@@ -23,3 +22,6 @@ Thumbs.db
 
 # Logs
 *.log
+notebooks/muti-user-modeling/New/posts_with_sentiment_emotion_analysis(8).csv
+notebooks/muti-user-modeling/New/posts_with_sentiment_emotion_analysis(8).csv
+notebooks/muti-user-modeling/New/posts_with_sentiment_emotion_analysis(8).csv
